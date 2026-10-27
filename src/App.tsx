@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { Flow1Mapping } from './components/Flow1Mapping';
 import { Flow2Extraction } from './components/Flow2Extraction';
+import { TaskScheduler } from './components/TaskScheduler';
 import { SettingsModal } from './components/SettingsModal';
 import { 
   DEFAULT_HOTEL_NAME, 
@@ -13,7 +14,7 @@ import { HotelRoomType, CompetitorHotel, CompetitorRoomMapping } from './types/y
 import { BotStatusService } from './services/botStatusService';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'flow1' | 'flow2'>('flow1');
+  const [activeTab, setActiveTab] = useState<'flow1' | 'flow2' | 'scheduler'>('flow1');
 
   // Live Bot Daemon Status
   const [botStatus, setBotStatus] = useState({
@@ -129,7 +130,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        {activeTab === 'flow1' ? (
+        {activeTab === 'flow1' && (
           <Flow1Mapping
             hotelName={hotelName}
             setHotelName={setHotelName}
@@ -144,7 +145,9 @@ export default function App() {
             onResetDefaults={handleResetDefaults}
             onProceedToFlow2={() => setActiveTab('flow2')}
           />
-        ) : (
+        )}
+
+        {activeTab === 'flow2' && (
           <Flow2Extraction
             hotelName={hotelName}
             hotelRooms={hotelRooms}
@@ -160,6 +163,19 @@ export default function App() {
             botStatus={botStatus}
           />
         )}
+
+        {activeTab === 'scheduler' && (
+          <TaskScheduler
+            hotelName={hotelName}
+            hotelRooms={hotelRooms}
+            competitorHotels={competitorHotels}
+            mappedRooms={mappedRooms}
+            telegramChatId={telegramChatId}
+            telegramToken={telegramToken}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onSwitchToFlow1={() => setActiveTab('flow1')}
+          />
+        )}
       </main>
 
       {/* Footer */}
@@ -170,7 +186,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSettingsOpen(true)} className="hover:text-blue-600 transition-colors font-medium">
-              Tetapan, Cloudflare & Skrip Python
+              Settings, Cloudflare &amp; Python Scripts
             </button>
           </div>
         </div>

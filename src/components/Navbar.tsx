@@ -3,12 +3,13 @@ import {
   Building2, 
   Settings, 
   Layers, 
-  Activity
+  Activity,
+  Clock
 } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'flow1' | 'flow2';
-  setActiveTab: (tab: 'flow1' | 'flow2') => void;
+  activeTab: 'flow1' | 'flow2' | 'scheduler';
+  setActiveTab: (tab: 'flow1' | 'flow2' | 'scheduler') => void;
   onOpenSettings: () => void;
   isSimulated: boolean;
   telegramConfigured: boolean;
@@ -33,7 +34,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="bg-white text-slate-900 border-b border-slate-200 sticky top-0 z-30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
-          {/* Clean Brand */}
+          {/* Brand */}
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm shadow-xs">
               Y
@@ -43,7 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
           </div>
 
-          {/* Clean Segmented Tab Control */}
+          {/* Segmented Tab Navigation */}
           <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200/80">
             <button
               onClick={() => setActiveTab('flow1')}
@@ -67,14 +68,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Activity className="w-3.5 h-3.5 text-slate-500" />
               <span>Flow 2: Price Monitoring</span>
             </button>
+            <button
+              onClick={() => setActiveTab('scheduler')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                activeTab === 'scheduler'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-slate-500" />
+              <span>Task Scheduler</span>
+            </button>
           </div>
 
-          {/* Right Action Bar */}
+          {/* Action Bar */}
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
               <span className={`w-2 h-2 rounded-full ${isSimulated ? 'bg-amber-500' : 'bg-emerald-600'}`} />
               <span className="font-medium text-slate-600">
-                {isSimulated ? 'Mod Simulasi' : 'Live Booking API'}
+                {isSimulated ? 'Simulation Mode' : 'Live Booking API'}
               </span>
             </div>
 
@@ -89,10 +101,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
               title={
                 botStatus.isBusy
-                  ? `Bot sedang memproses fail dari Telegram: ${botStatus.currentTask || 'Sedang memproses...'}`
+                  ? `Bot is processing file from Telegram: ${botStatus.currentTask || 'Processing...'}`
                   : botStatus.isOnline
-                    ? `Bot @${botStatus.botUsername} LIVE & aktif mendengar Telegram. (${botStatus.processedCount} fail diproses)`
-                    : 'Bot Listener OFFLINE. Jalankan "npm run telegram:bot" di terminal.'
+                    ? `Bot @${botStatus.botUsername} is LIVE & listening to Telegram (${botStatus.processedCount} files processed)`
+                    : 'Bot Listener is OFFLINE. Ensure server is running.'
               }
             >
               <span className="relative flex h-2 w-2">
@@ -115,7 +127,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
               <span className="text-[11px]">
                 {botStatus.isBusy
-                  ? 'Telegram: Memproses...'
+                  ? 'Telegram: Processing...'
                   : botStatus.isOnline
                     ? 'Bot: LIVE'
                     : 'Bot: OFFLINE'}
@@ -125,10 +137,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={onOpenSettings}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium transition-colors shadow-xs"
-              title="Tetapan & Integrasi"
+              title="Settings & Integrations"
             >
               <Settings className="w-3.5 h-3.5 text-slate-500" />
-              <span>Tetapan</span>
+              <span>Settings</span>
               {telegramConfigured && (
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 ml-0.5" />
               )}

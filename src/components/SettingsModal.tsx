@@ -13,7 +13,6 @@ import {
   Copy, 
   Check, 
   Download, 
-  FileText,
   Zap,
   SlidersHorizontal
 } from 'lucide-react';
@@ -60,7 +59,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleTestTelegram = async () => {
     if (!telegramToken.trim()) {
-      setTelegramStatus({ type: 'error', message: 'Sila masukkan Telegram Bot Token terlebih dahulu.' });
+      setTelegramStatus({ type: 'error', message: 'Please enter a Telegram Bot Token first.' });
       return;
     }
     setTestingTelegram(true);
@@ -77,23 +76,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const sendCheck = await TelegramService.sendMessage(
         telegramToken,
         telegramChatId,
-        `👋 *YAMA Bot Connected!*\nUjian sambungan berjaya. Laporan harga hotel boleh dihantar ke sini.`
+        `👋 *YAMA Bot Connected!*\nConnection test successful. Hotel price monitoring reports will be delivered here.`
       );
       if (sendCheck.ok) {
         setTelegramStatus({
           type: 'success',
-          message: `Berjaya bersambung ke @${botCheck.botName || 'Bot'}! Mesej ujian telah dihantar ke chat.`
+          message: `Successfully connected to @${botCheck.botName || 'Bot'}! A test message has been sent to the chat.`
         });
       } else {
         setTelegramStatus({
           type: 'error',
-          message: `Bot sah (@${botCheck.botName}), tapi gagal menghantar mesej: ${sendCheck.error}. Sila pastikan anda telah tekan /start pada bot.`
+          message: `Bot is valid (@${botCheck.botName}), but failed to send message: ${sendCheck.error}. Please ensure you have sent /start to the bot.`
         });
       }
     } else {
       setTelegramStatus({
         type: 'success',
-        message: `Token sah! Bot: @${botCheck.botName}. Masukkan Chat ID untuk cuba hantar mesej.`
+        message: `Token valid! Bot: @${botCheck.botName}. Enter a Chat ID to test sending messages.`
       });
     }
 
@@ -102,7 +101,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleAutoDetectChatId = async () => {
     if (!telegramToken.trim()) {
-      setTelegramStatus({ type: 'error', message: 'Sila masukkan Telegram Bot Token terlebih dahulu.' });
+      setTelegramStatus({ type: 'error', message: 'Please enter a Telegram Bot Token first.' });
       return;
     }
     setDetectingChatId(true);
@@ -112,12 +111,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setTelegramChatId(res.chatId);
       setTelegramStatus({
         type: 'success',
-        message: `Chat ID (${res.chatId}) daripada "${res.senderName}" berjaya dikesan dan disimpan!`
+        message: `Chat ID (${res.chatId}) from "${res.senderName}" successfully detected and saved!`
       });
     } else {
       setTelegramStatus({
         type: 'error',
-        message: res.error || 'Gagal mengesan Chat ID. Sila pastikan anda buka bot @YamaHotelBot di Telegram dan tekan START dahulu.'
+        message: res.error || 'Failed to detect Chat ID. Please open @YamaHotelBot on Telegram and press START first.'
       });
     }
     setDetectingChatId(false);
@@ -126,16 +125,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const scripts = {
     listener: {
       name: 'telegram_bot_listener.py',
-      description: 'Bot Telegram interaktif: Terima muat naik fail .xlsx terus dari chat Telegram & automatik jalankan Flow 2!',
+      description: 'Interactive Telegram Bot: Receive .xlsx file uploads directly in Telegram chat & auto-run Flow 2!',
       code: `"""
 YAMA Bot - Interactive Telegram Auto-Runner Daemon
-Jalankan bot ini di PC/Server anda:
+Run this bot on your PC or server:
   python -m yama_bot.telegram_bot_listener
 
-Cara Guna:
-1. Drag & drop fail mapping .xlsx (Flow 1) terus ke dalam chat bot Telegram anda.
-2. Bot muat turun fail & automatik jalankan Flow 2 (Booking.com API).
-3. Bot hantar semula fail Excel bertarikh (YYYY-MM-DD-Hotel.xlsx) dan rumusan harga pasaran!
+How to use:
+1. Drag & drop your Flow 1 mapping .xlsx file directly into your Telegram bot chat.
+2. The bot downloads the file and automatically executes Flow 2 (Booking.com API).
+3. The bot sends back the dated Excel file (YYYY-MM-DD-Hotel.xlsx) and market rate analysis!
 """
 from yama_bot.telegram_bot_listener import main
 
@@ -144,7 +143,7 @@ if __name__ == "__main__":
     },
     flow2: {
       name: 'flow2_extract.py',
-      description: 'Skrip ekstraksi harga berkala mengikut matching ID bilik dan hantar ke Telegram.',
+      description: 'Periodic competitor price extraction script matching room IDs and dispatching to Telegram.',
       code: `"""
 YAMA Bot: Flow 2 - Recurring Competitor Price Extraction
 """
@@ -177,7 +176,7 @@ def run_flow2_extraction(input_workbook_path: Path, arrival_date: str, departure
     },
     flow1: {
       name: 'flow1_setup.py',
-      description: 'Skrip onboarding & discovery bilik pesaing Booking.com.',
+      description: 'Competitor discovery & room onboarding script using Booking.com API.',
       code: `"""
 YAMA Bot: Flow 1 - Initial Hotel and Room Mapping Setup
 """
@@ -194,7 +193,7 @@ def run_flow1_setup(hotel_name: str, hotel_rooms: list, competitor_queries: list
     },
     excel: {
       name: 'excel_engine.py',
-      description: 'Enjin pemprosesan 4 sheet input dan 2 sheet output (openpyxl).',
+      description: 'Excel engine handling 4 input sheets and 2 output sheets (openpyxl).',
       code: `"""
 Excel Engine for YAMA Bot (Requirements v3)
 Rule: Missing prices are marked N/A and excluded from average/lowest calculations; never 0.
@@ -215,7 +214,7 @@ class ExcelEngine:
     },
     api: {
       name: 'rapidapi_client.py',
-      description: 'Client API Booking.com pada RapidAPI.',
+      description: 'Booking.com API client on RapidAPI.',
       code: `import requests
 class RapidApiBookingClient:
     def __init__(self, api_key=None, api_host="booking-com15.p.rapidapi.com"):
@@ -225,7 +224,7 @@ class RapidApiBookingClient:
     },
     telegram: {
       name: 'telegram_notifier.py',
-      description: 'Hantar ringkasan harga dan fail Excel terus ke Telegram.',
+      description: 'Dispatches rate summaries and Excel files directly to Telegram.',
       code: `import requests
 from pathlib import Path
 class TelegramNotifier:
@@ -237,7 +236,7 @@ class TelegramNotifier:
     },
     cron: {
       name: 'daily_price_monitor.yml',
-      description: 'Fail GitHub Actions cron untuk lari automatik setiap hari secara percuma.',
+      description: 'GitHub Actions daily cron workflow for 100% free automated extraction.',
       code: `name: YAMA Bot - Daily Competitor Price Extraction
 on:
   schedule:
@@ -287,8 +286,8 @@ jobs:
           <div className="flex items-center gap-2.5">
             <SlidersHorizontal className="w-5 h-5 text-amber-400" />
             <div>
-              <h2 className="text-base font-bold">Tetapan & Konfigurasi Sistem</h2>
-              <p className="text-xs text-slate-400">Urus API, Telegram, Cloudflare & skrip automasi di satu tempat</p>
+              <h2 className="text-base font-bold">System Settings & Configuration</h2>
+              <p className="text-xs text-slate-400">Manage API keys, Telegram bot, Cloudflare & automation scripts in one place</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
@@ -319,7 +318,7 @@ jobs:
             }`}
           >
             <Cloud className="w-3.5 h-3.5" />
-            Deploy Cloudflare
+            Cloudflare Deployment
           </button>
 
           <button
@@ -331,7 +330,7 @@ jobs:
             }`}
           >
             <Code2 className="w-3.5 h-3.5" />
-            Skrip Python
+            Python Scripts
           </button>
         </div>
 
@@ -353,14 +352,14 @@ jobs:
                     rel="noreferrer"
                     className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                   >
-                    Dapatkan Key di RapidAPI <ExternalLink className="w-3 h-3" />
+                    Get Key on RapidAPI <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
                 <input
                   type="password"
                   value={rapidApiKey}
                   onChange={(e) => setRapidApiKey(e.target.value)}
-                  placeholder="cth: 74d89a2468msh... (Biarkan kosong untuk Mod Simulasi)"
+                  placeholder="e.g. 74d89a2468msh... (Leave empty for Simulation Mode)"
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
                 />
                 <div className="flex items-center gap-2">
@@ -374,7 +373,7 @@ jobs:
                   />
                 </div>
                 <p className="text-xs text-slate-500">
-                  💡 <strong>Mod Simulasi:</strong> Jika anda tiada API key, sistem menjana harga Booking.com realistik secara automatik supaya anda boleh uji tanpa tolak kuota API.
+                  💡 <strong>Simulation Mode:</strong> If you do not provide an API key, the system automatically generates realistic Booking.com market rates so you can test all features without consuming API quota.
                 </p>
               </div>
 
@@ -385,7 +384,7 @@ jobs:
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                     <Send className="w-4 h-4 text-emerald-600" />
-                    Notifikasi Telegram Bot (Flow 2)
+                    Telegram Bot Notifications (Flow 2 & Auto-Runner)
                   </label>
                   <a
                     href="https://t.me/BotFather"
@@ -393,7 +392,7 @@ jobs:
                     rel="noreferrer"
                     className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                   >
-                    Buat Bot di @BotFather <ExternalLink className="w-3 h-3" />
+                    Create Bot at @BotFather <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
 
@@ -403,7 +402,7 @@ jobs:
                     type="password"
                     value={telegramToken}
                     onChange={(e) => setTelegramToken(e.target.value)}
-                    placeholder="cth: 7123456789:AAFx... dari @BotFather"
+                    placeholder="e.g. 7123456789:AAFx... from @BotFather"
                     className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 font-mono"
                   />
                 </div>
@@ -417,7 +416,7 @@ jobs:
                       rel="noreferrer"
                       className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-medium"
                     >
-                      Buka @YamaHotelBot di Telegram <ExternalLink className="w-2.5 h-2.5" />
+                      Open @YamaHotelBot in Telegram <ExternalLink className="w-2.5 h-2.5" />
                     </a>
                   </div>
                   <div className="flex gap-2">
@@ -425,7 +424,7 @@ jobs:
                       type="text"
                       value={telegramChatId}
                       onChange={(e) => setTelegramChatId(e.target.value)}
-                      placeholder="cth: 123456789 atau tekan butang 'Kesan'"
+                      placeholder="e.g. 123456789 or click 'Detect Chat ID'"
                       className="flex-1 px-3.5 py-2 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 font-mono"
                     />
                     <button
@@ -434,11 +433,11 @@ jobs:
                       disabled={detectingChatId}
                       className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 transition-colors shrink-0"
                     >
-                      {detectingChatId ? 'Mencari...' : 'Kesan Chat ID'}
+                      {detectingChatId ? 'Detecting...' : 'Detect Chat ID'}
                     </button>
                   </div>
                   <span className="text-[11px] text-slate-400 mt-1 block">
-                    Buka <code>@YamaHotelBot</code> di Telegram, tekan <strong>START</strong>, kemudian klik <strong>Kesan Chat ID</strong> di atas.
+                    Open <code>@YamaHotelBot</code> in Telegram, press <strong>START</strong>, then click <strong>Detect Chat ID</strong> above.
                   </span>
                 </div>
 
@@ -449,7 +448,7 @@ jobs:
                     className="px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition-colors flex items-center gap-2"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    {testingTelegram ? 'Sedang Menguji...' : 'Uji Sambungan Telegram'}
+                    {testingTelegram ? 'Testing Connection...' : 'Test Telegram Connection'}
                   </button>
                 </div>
 
@@ -474,10 +473,10 @@ jobs:
                 <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl space-y-1.5 text-xs text-blue-900">
                   <div className="font-bold flex items-center gap-1.5 text-blue-950">
                     <Zap className="w-4 h-4 text-blue-600" />
-                    Muat Naik Fail Terus dari Telegram & Auto-Run!
+                    Upload Files Directly from Telegram & Auto-Run!
                   </div>
                   <p className="text-blue-800 leading-relaxed text-[11px]">
-                    Anda boleh menghantar fail <code>.xlsx</code> mapping terus ke dalam chat bot Telegram anda tanpa buka browser. Skrip Python <code>yama_bot.telegram_bot_listener</code> akan memuat turun fail, menjalankan Flow 2 dengan Booking.com API secara automatik, dan membalas fail laporan bertarikh terus ke chat anda!
+                    You can send your mapping <code>.xlsx</code> file directly into your Telegram bot chat without opening a browser. The background runner downloads the file, runs Flow 2 with Booking.com API automatically, and replies with your dated report file directly in chat!
                   </p>
                   <p className="text-[11px] font-mono bg-blue-100/80 p-1.5 rounded text-blue-950">
                     $ python -m yama_bot.telegram_bot_listener
@@ -494,10 +493,10 @@ jobs:
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
                   <h4 className="font-bold text-emerald-900 text-xs">
-                    Ya, aplikasi ini boleh di-deploy ke Cloudflare Pages secara 100% percuma!
+                    Yes, this application can be deployed to Cloudflare Pages 100% free!
                   </h4>
                   <p className="text-emerald-800 mt-0.5 leading-relaxed">
-                    Frontend web app dibina menggunakan Vite + React dan boleh di-host di Cloudflare Pages dengan SSL automatik. Untuk automasi harian tanpa perlu buka laptop, guna GitHub Actions cron percuma yang disertakan.
+                    The frontend web app is built with Vite + React and can be hosted on Cloudflare Pages with automatic SSL. For daily price monitoring without opening your laptop, use the included free GitHub Actions cron workflow.
                   </p>
                 </div>
               </div>
@@ -505,28 +504,28 @@ jobs:
               <div className="space-y-3">
                 <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                   <Terminal className="w-4 h-4 text-orange-500" />
-                  Langkah Deploy ke Cloudflare Pages:
+                  Steps to Deploy on Cloudflare Pages:
                 </h4>
 
                 <div className="p-3 bg-slate-900 text-slate-200 rounded-lg font-mono text-[11px] space-y-1">
-                  <p className="text-slate-400"># Pilihan 1: Deploy terus dari Git (Recommended)</p>
-                  <p>1. Buka <strong>Cloudflare Dashboard &gt; Workers & Pages &gt; Create Application &gt; Pages</strong></p>
-                  <p>2. Sambungkan repo GitHub anda</p>
+                  <p className="text-slate-400"># Option 1: Direct Deploy from Git (Recommended)</p>
+                  <p>1. Open <strong>Cloudflare Dashboard &gt; Workers &amp; Pages &gt; Create Application &gt; Pages</strong></p>
+                  <p>2. Connect your GitHub repository</p>
                   <p>3. Framework preset: <span className="text-amber-300">Vite</span></p>
                   <p>4. Build command: <span className="text-amber-300">npm run build</span></p>
                   <p>5. Build output directory: <span className="text-amber-300">dist</span></p>
                 </div>
 
                 <div className="p-3 bg-slate-900 text-slate-200 rounded-lg font-mono text-[11px] space-y-1">
-                  <p className="text-slate-400"># Pilihan 2: Deploy guna Wrangler CLI dari Terminal</p>
+                  <p className="text-slate-400"># Option 2: Deploy using Wrangler CLI from Terminal</p>
                   <p>npm run build</p>
                   <p>npx wrangler pages deploy dist --project-name=yama-bot</p>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
-                  <div className="font-bold text-slate-800">Automasi Cron Harian (Percuma):</div>
+                  <div className="font-bold text-slate-800">Daily Cron Automation (Free):</div>
                   <p className="text-slate-600">
-                    Masukkan secret <code>RAPIDAPI_KEY</code>, <code>TELEGRAM_BOT_TOKEN</code>, dan <code>TELEGRAM_CHAT_ID</code> dalam GitHub Repo &gt; Settings &gt; Secrets. Fail <code>.github/workflows/daily_price_monitor.yml</code> akan mengekstrak harga setiap hari secara automatik dan hantar ke Telegram anda!
+                    Add secrets <code>RAPIDAPI_KEY</code>, <code>TELEGRAM_BOT_TOKEN</code>, and <code>TELEGRAM_CHAT_ID</code> in GitHub Repo &gt; Settings &gt; Secrets. The file <code>.github/workflows/daily_price_monitor.yml</code> will automatically extract prices every day and deliver them to your Telegram!
                   </p>
                 </div>
               </div>
@@ -568,14 +567,14 @@ jobs:
                     className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-semibold flex items-center gap-1 transition-colors"
                   >
                     {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                    {copied ? 'Disalin' : 'Salin'}
+                    {copied ? 'Copied' : 'Copy Code'}
                   </button>
                   <button
                     onClick={handleDownloadScript}
                     className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold flex items-center gap-1 transition-colors"
                   >
                     <Download className="w-3 h-3" />
-                    Muat Turun
+                    Download Script
                   </button>
                 </div>
               </div>
@@ -591,13 +590,13 @@ jobs:
         <div className="bg-slate-50 px-6 py-3.5 border-t border-slate-200 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-slate-500">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            Konfigurasi disimpan selamat dalam browser anda
+            Configuration is safely stored in your local browser
           </div>
           <button
             onClick={onClose}
             className="px-5 py-2 bg-slate-900 hover:bg-black text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
           >
-            Tutup
+            Close
           </button>
         </div>
       </div>

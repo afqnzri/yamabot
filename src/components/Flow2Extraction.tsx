@@ -5,17 +5,16 @@ import {
   Send, 
   Calendar, 
   FileSpreadsheet, 
-  RefreshCw,
-  Upload,
-  ArrowRight,
-  Radio,
-  CheckCircle2,
-  Clock,
-  Terminal,
-  ExternalLink,
-  ChevronDown,
-  ChevronUp,
-  FileText
+  RefreshCw, 
+  Upload, 
+  ArrowRight, 
+  CheckCircle2, 
+  Clock, 
+  Terminal, 
+  ExternalLink, 
+  ChevronDown, 
+  ChevronUp, 
+  FileText 
 } from 'lucide-react';
 import { HotelRoomType, CompetitorRoomMapping, PriceReportRow, ExtractionResult } from '../types/yama';
 import { RapidApiService } from '../services/rapidApiService';
@@ -96,7 +95,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
       if (res.botInfo) setBotInfo(res.botInfo);
       setShowTelegramLogs(true);
     } else {
-      setUploadMessage(`Ralat semakan Telegram: ${res.error}`);
+      setUploadMessage(`Telegram check error: ${res.error}`);
     }
     setCheckingTelegram(false);
   };
@@ -107,13 +106,13 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
 
   const handleRunExtraction = async () => {
     if (activeMappedRooms.length === 0) {
-      setUploadMessage("Tiada bilik pesaing yang dipadankan. Sila lengkapkan mapping dalam Flow 1 terlebih dahulu.");
+      setUploadMessage("No mapped competitor rooms found. Please complete room mapping in Flow 1 first.");
       return;
     }
 
     setExtracting(true);
     setProgress(10);
-    setStatusMessage('Memulakan ekstraksi harga YAMA Bot...');
+    setStatusMessage('Initiating YAMA Bot price extraction...');
 
     try {
       const { priceReport, updatedRooms } = await RapidApiService.runPriceExtraction(
@@ -141,9 +140,9 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
       };
 
       setExtractionResult(result);
-      setStatusMessage('Analisis harga selesai!');
+      setStatusMessage('Price analysis completed!');
     } catch (err: any) {
-      setStatusMessage(`Ralat semasa ekstraksi: ${err.message}`);
+      setStatusMessage(`Extraction error: ${err.message}`);
     } finally {
       setExtracting(false);
     }
@@ -157,7 +156,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
       extractionResult.departureDate,
       extractionResult.priceReport,
       extractionResult.updatedRooms,
-      true // Muat turun ke PC hanya bila butang ini ditekan
+      true // Download to PC only when explicitly requested
     );
   };
 
@@ -172,7 +171,6 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
     setTelegramStatus(null);
 
     try {
-      // Hantar ke Telegram SAHAJA (autoDownload = false, tiada auto-download ke PC)
       const { filename, blob } = ExcelService.exportOutputWorkbook(
         extractionResult.hotelName,
         extractionResult.arrivalDate,
@@ -184,19 +182,19 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
 
       const lines = [
         `🏨 *YAMA Bot Alert: ${extractionResult.hotelName}*`,
-        `📅 *Tarikh:* ${extractionResult.arrivalDate} → ${extractionResult.departureDate}`,
+        `📅 *Dates:* ${extractionResult.arrivalDate} → ${extractionResult.departureDate}`,
         ``,
-        `📊 *Ringkasan Harga Pasaran:*`
+        `📊 *Market Price Summary:*`
       ];
 
       extractionResult.priceReport.forEach(p => {
-        const lowest = p.lowest_competitor_price !== 'N/A' ? `RM ${p.lowest_competitor_price}` : 'N/A';
-        const avg = p.average_competitor_price !== 'N/A' ? `RM ${p.average_competitor_price}` : 'N/A';
-        lines.push(`• *${p.our_room_type}*: Terendah ${lowest} | Purata ${avg} (${p.valid_quotes} sebut harga)`);
+        const lowest = typeof p.lowest_competitor_price === 'number' ? `RM ${p.lowest_competitor_price.toFixed(2)}` : 'N/A';
+        const avg = typeof p.average_competitor_price === 'number' ? `RM ${p.average_competitor_price.toFixed(2)}` : 'N/A';
+        lines.push(`• *${p.our_room_type}*: Lowest ${lowest} | Average ${avg} (${p.valid_quotes} quotes)`);
       });
 
       lines.push(``);
-      lines.push(`📁 Fail Excel dilampirkan: \`${filename}\``);
+      lines.push(`📁 Attached Excel report: \`${filename}\``);
 
       const res = await TelegramService.sendDocument(
         telegramToken,
@@ -207,12 +205,12 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
       );
 
       if (res.ok) {
-        setTelegramStatus('Laporan dan fail Excel berjaya dihantar ke Telegram!');
+        setTelegramStatus('Report and Excel workbook sent to Telegram successfully!');
       } else {
-        setTelegramStatus(`Gagal menghantar ke Telegram: ${res.error}`);
+        setTelegramStatus(`Failed to send to Telegram: ${res.error}`);
       }
     } catch (e: any) {
-      setTelegramStatus(`Ralat: ${e.message}`);
+      setTelegramStatus(`Error: ${e.message}`);
     } finally {
       setSendingTelegram(false);
     }
@@ -225,14 +223,14 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
     setUploadMessage(null);
     try {
       const data = await onUploadWorkbook(file);
-      setUploadMessage(`Berjaya membaca "${file.name}" (${data.mappedRooms.length} mapping bilik).`);
+      setUploadMessage(`Successfully imported "${file.name}" (${data.mappedRooms.length} room mappings).`);
       if (autoRun) {
         setTimeout(() => {
           handleRunExtraction();
         }, 300);
       }
     } catch (err: any) {
-      setUploadMessage(`Gagal membaca fail Excel: ${err.message}`);
+      setUploadMessage(`Failed to read Excel workbook: ${err.message}`);
     } finally {
       setUploadLoading(false);
     }
@@ -247,14 +245,14 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
             Flow 2: Recurring Competitor Price Extraction
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Ekstrak harga pesaing terkini dari Booking.com untuk bilik yang dipadankan dan jana fail laporan berformat.
+            Extract live competitor rates from Booking.com for mapped rooms and generate structured report workbooks.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <label className="cursor-pointer px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-2 shadow-xs">
             <Upload className="w-3.5 h-3.5 text-slate-500" />
-            <span>{uploadLoading ? 'Membaca...' : 'Muat Naik .xlsx'}</span>
+            <span>{uploadLoading ? 'Reading...' : 'Upload .xlsx'}</span>
             <input
               type="file"
               accept=".xlsx, .xls"
@@ -266,7 +264,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
 
           <label className="cursor-pointer px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs">
             <Upload className="w-3.5 h-3.5 text-slate-600" />
-            <span>Muat Naik & Auto-Run</span>
+            <span>Upload & Auto-Run</span>
             <input
               type="file"
               accept=".xlsx, .xls"
@@ -281,14 +279,14 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
       {uploadMessage && (
         <div className="p-3.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-center justify-between">
           <span>{uploadMessage}</span>
-          <button onClick={() => setUploadMessage(null)} className="underline text-[11px] font-semibold">Tutup</button>
+          <button onClick={() => setUploadMessage(null)} className="underline text-[11px] font-semibold">Dismiss</button>
         </div>
       )}
 
       {telegramStatus && (
         <div className="p-3.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
           <span>{telegramStatus}</span>
-          <button onClick={() => setTelegramStatus(null)} className="underline text-[11px] font-semibold">Tutup</button>
+          <button onClick={() => setTelegramStatus(null)} className="underline text-[11px] font-semibold">Dismiss</button>
         </div>
       )}
 
@@ -330,15 +328,15 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : 'bg-rose-50 text-rose-700 border-rose-200'
                 }`}>
-                  {botStatus?.isBusy ? 'SEDANG MEMPROSES' : botStatus?.isOnline ? 'LIVE (ONLINE)' : 'OFFLINE'}
+                  {botStatus?.isBusy ? 'PROCESSING' : botStatus?.isOnline ? 'LIVE (ONLINE)' : 'OFFLINE'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 {botStatus?.isBusy
-                  ? `Sedang memproses fail di Telegram: ${botStatus.currentTask || ''}`
+                  ? `Processing file from Telegram: ${botStatus.currentTask || ''}`
                   : botStatus?.isOnline
-                    ? `Daemon aktif mendengar Telegram. (${botStatus.processedCount} fail diproses sesi ini)`
-                    : 'Daemon offline. Sila pastikan bot runner dijalankan.'}
+                    ? `Daemon is actively listening to Telegram (${botStatus.processedCount} files processed this session)`
+                    : 'Daemon is offline. Please make sure the server process is running.'}
               </p>
             </div>
           </div>
@@ -350,13 +348,13 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
               className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-slate-200 shrink-0"
             >
               <RefreshCw className={`w-3 h-3 ${checkingTelegram ? 'animate-spin' : ''}`} />
-              <span>{checkingTelegram ? 'Menyemak...' : 'Semak Mesej Telegram Terkini'}</span>
+              <span>{checkingTelegram ? 'Checking...' : 'Check Telegram Activity'}</span>
             </button>
             {telegramLogs && (
               <button
                 onClick={() => setShowTelegramLogs(!showTelegramLogs)}
                 className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 text-xs font-medium"
-                title="Togol Paparan Log"
+                title="Toggle Log View"
               >
                 {showTelegramLogs ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
@@ -368,64 +366,64 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
         {botStatus?.isBusy && (
           <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
             <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600 shrink-0" />
-            <span className="font-medium">Sedang Berjalan di Telegram: {botStatus.currentTask || 'Mengekstrak harga...'}</span>
+            <span className="font-medium">Running Telegram Task: {botStatus.currentTask || 'Extracting prices...'}</span>
           </div>
         )}
 
         {/* Multi-User Support Notice */}
         <div className="p-2.5 bg-blue-50/70 border border-blue-200/80 rounded-lg text-xs text-blue-900 space-y-1">
           <div className="font-bold flex items-center gap-1.5 text-blue-950 text-[11px]">
-            <span>👥 Sokongan Pelbagai Pengguna (Multi-User):</span>
+            <span>👥 Multi-User Support:</span>
           </div>
           <p className="text-[11px] text-blue-800 leading-relaxed">
-            Setiap pengguna (staf hotel, pengurus, rakan sekerja) yang menghantar fail <code>.xlsx</code> ke <strong>@{botStatus?.botUsername || 'YamaHotelBot'}</strong> akan menerima laporan harga terus ke akaun Telegram mereka sendiri. Output tidak terhad kepada satu ID sahaja!
+            Any user (hotel staff, managers, colleagues) sending a <code>.xlsx</code> file to <strong>@{botStatus?.botUsername || 'YamaHotelBot'}</strong> will receive the price report directly in their own chat. Output is not restricted to a single account!
           </p>
         </div>
 
-        {/* 3 Petunjuk Visual: Bagaimana Tahu Python Sedang Berjalan? */}
+        {/* 3 Visual Indicators */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
             <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
               <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-[10px] flex items-center justify-center font-bold">1</span>
-              <span>Balasan Segera di Telegram</span>
+              <span>Instant Telegram Reply</span>
             </div>
             <p className="text-[11px] text-slate-600 leading-snug">
-              Sebaik fail .xlsx dihantar, bot akan balas serta-merta: <em>"📥 Workbook Diterima... ⏳ Memulakan ekstraksi..."</em>. Jika Python tidak aktif, tiada balasan diterima.
+              When a .xlsx file is sent, the bot immediately confirms: <em>"📥 Workbook Received... ⏳ Initiating extraction..."</em>.
             </p>
           </div>
 
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
             <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
               <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-[10px] flex items-center justify-center font-bold">2</span>
-              <span>Status Header Telegram</span>
+              <span>Telegram Action Status</span>
             </div>
             <p className="text-[11px] text-slate-600 leading-snug">
-              Semasa menghubungi Booking.com API, status di atas chat akan memaparkan <span className="font-semibold text-slate-700">"yamabot is sending a file..."</span>.
+              While querying the Booking.com API, the chat header shows <span className="font-semibold text-slate-700">"yamabot is sending a file..."</span>.
             </p>
           </div>
 
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
             <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
               <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-[10px] flex items-center justify-center font-bold">3</span>
-              <span>Hasil Laporan Dihantar</span>
+              <span>Delivered Excel Report</span>
             </div>
             <p className="text-[11px] text-slate-600 leading-snug">
-              Bot membalas fail laporan Excel bertarikh <span className="font-mono text-[10px]">YYYY-MM-DD-Hotel.xlsx</span> berserta analisis harga dalam chat Telegram anda.
+              The bot delivers the dated Excel report <span className="font-mono text-[10px]">YYYY-MM-DD-Hotel.xlsx</span> with market price recommendations directly to your chat.
             </p>
           </div>
         </div>
 
-        {/* Live Telegram Recent Messages Log (Optional Expand) */}
+        {/* Live Telegram Recent Messages Log */}
         {showTelegramLogs && telegramLogs && (
           <div className="mt-2 pt-3 border-t border-slate-100 space-y-2">
             <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold">
-              <span>Mesej / Fail Terkini Diterima oleh @{botInfo?.username || 'YamaHotelBot'}:</span>
-              <span>{telegramLogs.length} rekod aktiviti</span>
+              <span>Recent Messages / Files Received by @{botInfo?.username || 'YamaHotelBot'}:</span>
+              <span>{telegramLogs.length} activity records</span>
             </div>
 
             {telegramLogs.length === 0 ? (
               <p className="text-xs text-slate-500 italic p-3 bg-slate-50 rounded-lg text-center">
-                Tiada mesej baru diterima lagi. Buka <a href="https://t.me/YamaHotelBot" target="_blank" rel="noreferrer" className="text-blue-600 underline">@YamaHotelBot</a> dan hantar mesej atau fail .xlsx anda!
+                No new messages received yet. Open <a href="https://t.me/YamaHotelBot" target="_blank" rel="noreferrer" className="text-blue-600 underline">@YamaHotelBot</a> and send a message or .xlsx workbook!
               </p>
             ) : (
               <div className="space-y-1.5 max-h-40 overflow-y-auto">
@@ -439,7 +437,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                           {log.documentName}
                         </span>
                       ) : (
-                        <span className="text-slate-600 italic">"{log.text || 'Mesej'}"</span>
+                        <span className="text-slate-600 italic">"{log.text || 'Message'}"</span>
                       )}
                     </div>
                     <span className="text-[10px] text-slate-400 font-mono shrink-0">{log.date}</span>
@@ -456,7 +454,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-500 font-medium">Tarikh Masuk:</span>
+              <span className="text-slate-500 font-medium">Arrival Date:</span>
               <div className="relative">
                 <input
                   type="date"
@@ -470,7 +468,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
             <span className="text-slate-300 hidden sm:inline">→</span>
 
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-500 font-medium">Tarikh Keluar:</span>
+              <span className="text-slate-500 font-medium">Departure Date:</span>
               <div className="relative">
                 <input
                   type="date"
@@ -482,7 +480,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
             </div>
 
             <span className="text-xs text-slate-400 pl-1">
-              · {activeMappedRooms.length} bilik dipantau ({hotelName})
+              · {activeMappedRooms.length} rooms tracked ({hotelName || 'Hotel'})
             </span>
           </div>
 
@@ -492,7 +490,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
             className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-xs"
           >
             {extracting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-            <span>{extracting ? 'Sedang Mengekstrak...' : 'Mula Ekstraksi Harga'}</span>
+            <span>{extracting ? 'Extracting Rates...' : 'Start Price Extraction'}</span>
           </button>
         </div>
 
@@ -519,9 +517,9 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
             <FileSpreadsheet className="w-5 h-5 text-slate-500" />
           </div>
           <div className="max-w-md mx-auto">
-            <h3 className="text-sm font-semibold text-slate-900">Sedia Untuk Mengekstrak Harga Pesaing</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Ready to Extract Competitor Rates</h3>
             <p className="text-xs text-slate-500 mt-1">
-              Pilih tarikh di atas dan klik <strong>"Mula Ekstraksi Harga"</strong> untuk mendapatkan kadar terkini dari Booking.com dan mengira kadar purata serta terendah.
+              Select dates above and click <strong>"Start Price Extraction"</strong> to fetch live Booking.com rates and calculate lowest and average competitor prices.
             </p>
           </div>
         </div>
@@ -530,17 +528,17 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
           {/* Metrics summary cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-              <div className="text-[11px] font-medium text-slate-500">Jenis Bilik Dipantau</div>
+              <div className="text-[11px] font-medium text-slate-500">Tracked Room Types</div>
               <div className="text-xl font-bold text-slate-900 mt-1">
                 {extractionResult.priceReport.length}
               </div>
               <div className="text-[11px] text-slate-400 mt-0.5">
-                {extractionResult.updatedRooms.length} rekod pesaing
+                {extractionResult.updatedRooms.length} competitor records
               </div>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-              <div className="text-[11px] font-medium text-slate-500">Kadar Pasaran Terendah</div>
+              <div className="text-[11px] font-medium text-slate-500">Lowest Market Rate</div>
               <div className="text-xl font-bold text-slate-900 mt-1 tabular-nums">
                 RM {
                   Math.min(
@@ -550,22 +548,22 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                 }
               </div>
               <div className="text-[11px] text-slate-400 mt-0.5">
-                Kadar lantai sah pesaing
+                Valid competitor floor rate
               </div>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-              <div className="text-[11px] font-medium text-slate-500">Fail Output Dijana</div>
+              <div className="text-[11px] font-medium text-slate-500">Generated Output File</div>
               <div className="text-xs font-mono font-semibold text-slate-800 truncate mt-1">
                 {extractionResult.outputWorkbookName}
               </div>
               <div className="text-[11px] text-slate-400 mt-0.5">
-                Fail asal tidak disentuh
+                Original input file untouched
               </div>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
-              <div className="text-[11px] font-medium text-slate-500">Notifikasi Telegram</div>
+              <div className="text-[11px] font-medium text-slate-500">Telegram Notification</div>
               <div className="mt-1">
                 <button
                   onClick={handleSendTelegram}
@@ -573,7 +571,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                   className="w-full py-1.5 px-3 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5 shadow-xs"
                 >
                   <Send className="w-3.5 h-3.5 text-slate-600" />
-                  <span>{sendingTelegram ? 'Menghantar...' : 'Hantar ke Telegram'}</span>
+                  <span>{sendingTelegram ? 'Sending...' : 'Send to Telegram'}</span>
                 </button>
               </div>
             </div>
@@ -610,7 +608,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                 className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-2 shadow-xs"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Muat Turun Fail Excel (.xlsx)</span>
+                <span>Download Excel File (.xlsx)</span>
               </button>
             </div>
 
@@ -619,10 +617,10 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
               <div className="p-5">
                 <div className="mb-3">
                   <h4 className="font-semibold text-slate-900 text-xs">
-                    Laporan Ringkasan Harga Pasaran
+                    Market Price Summary Report
                   </h4>
                   <p className="text-[11px] text-slate-500">
-                    Purata dan kadar terendah sah dikira tanpa mengambil kira harga yang tiada (N/A tidak pernah dianggap 0).
+                    Averages and valid minimums are calculated excluding missing rates (N/A is never treated as 0).
                   </p>
                 </div>
 
@@ -630,13 +628,13 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
-                        <th className="py-2.5 px-3">Jenis Bilik Kita</th>
-                        <th className="py-2.5 px-3">Had Min</th>
-                        <th className="py-2.5 px-3">Had Max</th>
-                        <th className="py-2.5 px-3 font-semibold text-slate-900">Kadar Terendah</th>
-                        <th className="py-2.5 px-3 font-semibold text-slate-900">Kadar Purata</th>
-                        <th className="py-2.5 px-3 text-center">Sebut Harga</th>
-                        <th className="py-2.5 px-3">Syor Penetapan Harga</th>
+                        <th className="py-2.5 px-3">Our Room Type</th>
+                        <th className="py-2.5 px-3">Min Limit</th>
+                        <th className="py-2.5 px-3">Max Limit</th>
+                        <th className="py-2.5 px-3 font-semibold text-slate-900">Lowest Rate</th>
+                        <th className="py-2.5 px-3 font-semibold text-slate-900">Average Rate</th>
+                        <th className="py-2.5 px-3 text-center">Quotes</th>
+                        <th className="py-2.5 px-3">Pricing Recommendation</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -672,7 +670,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                 {/* Sub-breakdown per competitor */}
                 <div className="mt-5 pt-4 border-t border-slate-100">
                   <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2.5">
-                    Pecahan Sebut Harga Setiap Hotel Pesaing
+                    Rate Breakdown by Competitor Hotel
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {extractionResult.priceReport.map((p, idx) => (
@@ -680,7 +678,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                         <div className="font-semibold text-slate-900 flex justify-between mb-2">
                           <span>{p.our_room_type}</span>
                           <span className="font-normal text-slate-500">
-                            Purata: {typeof p.average_competitor_price === 'number' ? `RM ${p.average_competitor_price}` : 'N/A'}
+                            Avg: {typeof p.average_competitor_price === 'number' ? `RM ${p.average_competitor_price}` : 'N/A'}
                           </span>
                         </div>
                         <div className="space-y-1">
@@ -707,10 +705,10 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
               <div className="p-5">
                 <div className="mb-3">
                   <h4 className="font-semibold text-slate-900 text-xs">
-                    competitor_room Sheet (Kadar gross_amount Terkini)
+                    competitor_room Sheet (Updated gross_amount)
                   </h4>
                   <p className="text-[11px] text-slate-500">
-                    Jadual bilik yang dipadankan dengan kemas kini nilai harga Booking.com terkini.
+                    Table of mapped rooms updated with live Booking.com rate values.
                   </p>
                 </div>
 
@@ -718,12 +716,12 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
-                        <th className="py-2.5 px-3">ID Hotel Pesaing</th>
-                        <th className="py-2.5 px-3">Nama Hotel Pesaing</th>
-                        <th className="py-2.5 px-3">ID Bilik Pesaing</th>
-                        <th className="py-2.5 px-3">Nama Bilik Pesaing</th>
-                        <th className="py-2.5 px-3 font-semibold text-slate-900">gross_amount Terkini</th>
-                        <th className="py-2.5 px-3">Jenis Bilik Kita</th>
+                        <th className="py-2.5 px-3">Competitor Hotel ID</th>
+                        <th className="py-2.5 px-3">Competitor Hotel Name</th>
+                        <th className="py-2.5 px-3">Competitor Room ID</th>
+                        <th className="py-2.5 px-3">Competitor Room Name</th>
+                        <th className="py-2.5 px-3 font-semibold text-slate-900">Latest gross_amount</th>
+                        <th className="py-2.5 px-3">Our Room Type</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">

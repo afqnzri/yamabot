@@ -73,23 +73,23 @@ export class TelegramService {
     try {
       const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
       const data = await res.json();
-      if (!data.ok) return { ok: false, error: data.description || 'Gagal memanggil getUpdates' };
+      if (!data.ok) return { ok: false, error: data.description || 'Failed to call getUpdates' };
       const updates = data.result || [];
       if (updates.length === 0) {
         return { 
           ok: false, 
-          error: 'Tiada mesej ditemui lagi. Sila buka t.me/YamaHotelBot di Telegram dan tekan butang START / hantar sebarang mesej dahulu, kemudian klik butang ini semula.' 
+          error: 'No messages found yet. Please open t.me/YamaHotelBot on Telegram and press START or send any message first, then click this button again.' 
         };
       }
       const lastMsg = updates[updates.length - 1]?.message || updates[updates.length - 1]?.channel_post;
       if (!lastMsg || !lastMsg.chat) {
-        return { ok: false, error: 'Mesej ditemui tetapi tiada info chat.' };
+        return { ok: false, error: 'Message found but missing chat info.' };
       }
       const chatId = String(lastMsg.chat.id);
       const senderName = lastMsg.from?.first_name || lastMsg.chat.title || 'User';
       return { ok: true, chatId, senderName };
     } catch (e: any) {
-      return { ok: false, error: e.message || 'Ralat rangkaian menghubungi Telegram API' };
+      return { ok: false, error: e.message || 'Network error contacting Telegram API' };
     }
   }
 
@@ -113,7 +113,7 @@ export class TelegramService {
       const meRes = await fetch(`https://api.telegram.org/bot${token}/getMe`);
       const meData = await meRes.json();
       if (!meData.ok) {
-        return { ok: false, error: meData.description || 'Token Bot tidak sah' };
+        return { ok: false, error: meData.description || 'Invalid Bot Token' };
       }
       const botInfo = {
         name: meData.result.first_name || 'Bot',

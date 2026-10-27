@@ -1,7 +1,8 @@
 /**
  * YAMA Bot - Full-Stack Express Server & Background Telegram Runner
- * Mounts Vite dev middleware on port 3000 and runs the continuous Telegram Bot listener.
- * This keeps the bot permanently LIVE and active 24/7 inside the application runtime.
+ * Mounts Vite dev middleware on port 3000 and runs:
+ * 1. Continuous Telegram Bot listener (@YamaHotelBot)
+ * 2. Automated Task Scheduler (Daily / Periodic Auto Price Monitoring & Telegram Alerts)
  */
 
 import express from 'express';
@@ -12,6 +13,7 @@ import fs from 'fs';
 import { ExcelService } from './src/services/excelService';
 import { RapidApiService } from './src/services/rapidApiService';
 import type { CompetitorRoomMapping, PriceReportRow } from './src/types/yama';
+import type { SchedulerConfig, SchedulerLogEntry } from './src/types/scheduler';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,15 +22,19 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const isProd = process.env.NODE_ENV === 'production';
 
-app.use(express.json());
+// Increase payload limit for base64 workbook uploads
+app.use(express.json({ limit: '20mb' }));
 
-// Telegram Bot Configuration
+// Telegram & API Configuration
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8806821205:AAF6Z956tPfW2BsnMKzPkDmEzuAj1_5VYFM';
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || 'f659e796f5mshede0a10caa98d60p1f7437jsn2a0469f81edb';
 const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'booking-com15.p.rapidapi.com';
 const OWNER_CHAT_ID = process.env.TELEGRAM_OWNER_CHAT_ID || '54041669';
 
 const STATUS_FILE = path.resolve(__dirname, 'public', 'bot_status.json');
+const SCHEDULER_CONFIG_FILE = path.resolve(__dirname, 'scheduler_config.json');
+const SCHEDULER_LOGS_FILE = path.resolve(__dirname, 'scheduler_logs.json');
+const MASTER_WORKBOOK_FILE = path.resolve(__dirname, 'master_workbook.xlsx');
 
 // In-memory Daemon State
 const daemonStatus = {
@@ -53,11 +59,79 @@ function updateHeartbeat() {
   }
 }
 
-// Continuous Heartbeat Interval
 setInterval(updateHeartbeat, 3000);
 updateHeartbeat();
 
-// API endpoint for bot status
+// ==========================================
+// TASK SCHEDULER STATE & STORAGE
+// ==========================================
+let schedulerConfig: SchedulerConfig = {
+  enabled: false,
+  time: '07:00',
+  frequency: 'daily',
+  targetDaysAhead: 1,
+  targetStayNights: 1,
+  telegramChatId: OWNER_CHAT_ID,
+  hasMasterWorkbook: false,
+  masterHotelName: '',
+  masterMappedRoomsCount: 0,
+  lastRunTime: null,
+  lastRunStatus: null,
+  nextRunTime: null
+};
+
+let schedulerLogs: SchedulerLogEntry[] = [];
+
+// Load persisted scheduler state
+try {
+  if (fs.existsSync(SCHEDULER_CONFIG_FILE)) {
+    const raw = fs.readFileSync(SCHEDULER_CONFIG_FILE, 'utf-8');
+    schedulerConfig = { ...schedulerConfig, ...JSON.parse(raw) };
+  }
+  if (fs.existsSync(SCHEDULER_LOGS_FILE)) {
+    const raw = fs.readFileSync(SCHEDULER_LOGS_FILE, 'utf-8');
+    schedulerLogs = JSON.parse(raw);
+  }
+  if (fs.existsSync(MASTER_WORKBOOK_FILE)) {
+    const buf = fs.readFileSync(MASTER_WORKBOOK_FILE);
+    const parsed = ExcelService.parseWorkbookFromBuffer(buf);
+    schedulerConfig.hasMasterWorkbook = true;
+    schedulerConfig.masterHotelName = parsed.hotelName;
+    schedulerConfig.masterMappedRoomsCount = parsed.mappedRooms.filter(
+      r => r.our_room_type && !['UNMAPPED', 'IGNORE', 'NONE', ''].includes(r.our_room_type.toUpperCase())
+    ).length;
+  }
+} catch (e: any) {
+  console.warn('Could not load scheduler files:', e.message);
+}
+
+function saveSchedulerState() {
+  try {
+    fs.writeFileSync(SCHEDULER_CONFIG_FILE, JSON.stringify(schedulerConfig, null, 2));
+    fs.writeFileSync(SCHEDULER_LOGS_FILE, JSON.stringify(schedulerLogs.slice(0, 50), null, 2));
+  } catch (err: any) {
+    console.error('Failed to save scheduler state:', err.message);
+  }
+}
+
+function calculateNextRunTime(): string | null {
+  if (!schedulerConfig.enabled) return null;
+  const now = new Date();
+  const [hours, minutes] = schedulerConfig.time.split(':').map(Number);
+  const target = new Date();
+  target.setHours(hours, minutes, 0, 0);
+
+  if (target <= now) {
+    target.setDate(target.getDate() + 1);
+  }
+  return target.toLocaleString('ms-MY', { timeZone: 'Asia/Kuala_Lumpur' });
+}
+
+schedulerConfig.nextRunTime = calculateNextRunTime();
+
+// ==========================================
+// SCHEDULER & BOT API ROUTES (BEFORE VITE MIDDLEWARE)
+// ==========================================
 app.get('/api/bot-status', (_req, res) => {
   daemonStatus.timestamp = Date.now();
   res.json({
@@ -72,7 +146,220 @@ app.get('/api/bot-status', (_req, res) => {
   });
 });
 
-// Helper functions for Telegram Bot
+app.get('/api/scheduler', (_req, res) => {
+  schedulerConfig.nextRunTime = calculateNextRunTime();
+  res.json({
+    config: schedulerConfig,
+    logs: schedulerLogs
+  });
+});
+
+app.post('/api/scheduler', (req, res) => {
+  const updates = req.body;
+  schedulerConfig = {
+    ...schedulerConfig,
+    ...updates,
+    nextRunTime: calculateNextRunTime()
+  };
+  saveSchedulerState();
+  res.json({ ok: true, config: schedulerConfig });
+});
+
+app.post('/api/scheduler/upload-master', (req, res) => {
+  try {
+    const { base64, filename } = req.body;
+    if (!base64) return res.status(400).json({ error: 'Missing base64 data' });
+
+    const buffer = Buffer.from(base64, 'base64');
+    fs.writeFileSync(MASTER_WORKBOOK_FILE, buffer);
+
+    const parsed = ExcelService.parseWorkbookFromBuffer(buffer);
+    const activeRooms = parsed.mappedRooms.filter(
+      r => r.our_room_type && !['UNMAPPED', 'IGNORE', 'NONE', ''].includes(r.our_room_type.toUpperCase())
+    );
+
+    schedulerConfig.hasMasterWorkbook = true;
+    schedulerConfig.masterHotelName = parsed.hotelName || filename || 'Master Hotel';
+    schedulerConfig.masterMappedRoomsCount = activeRooms.length;
+    saveSchedulerState();
+
+    res.json({
+      ok: true,
+      hotelName: schedulerConfig.masterHotelName,
+      mappedRoomsCount: schedulerConfig.masterMappedRoomsCount
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/scheduler/trigger', async (_req, res) => {
+  res.json({ ok: true, message: 'Scheduler run triggered in background' });
+  runScheduledTask('Manual Trigger from Web UI');
+});
+
+// ==========================================
+// SCHEDULER EXECUTION CORE
+// ==========================================
+let isSchedulerRunning = false;
+let lastTriggeredDateString = '';
+
+async function runScheduledTask(triggerSource = 'Automated Timer') {
+  if (isSchedulerRunning) {
+    console.log('⚠️ Scheduled task already running, skipping.');
+    return;
+  }
+
+  isSchedulerRunning = true;
+  schedulerConfig.lastRunStatus = 'running';
+  saveSchedulerState();
+
+  const now = new Date();
+  const daysAhead = Number(schedulerConfig.targetDaysAhead) || 1;
+  const nights = Number(schedulerConfig.targetStayNights) || 1;
+
+  const arrDate = new Date(now.getTime() + daysAhead * 86400000);
+  const depDate = new Date(arrDate.getTime() + nights * 86400000);
+
+  const arrivalDate = arrDate.toISOString().slice(0, 10);
+  const departureDate = depDate.toISOString().slice(0, 10);
+
+  const logEntry: SchedulerLogEntry = {
+    id: `run_${Date.now()}`,
+    timestamp: new Date().toLocaleString('ms-MY', { timeZone: 'Asia/Kuala_Lumpur' }),
+    status: 'running',
+    hotelName: schedulerConfig.masterHotelName || 'Hotel',
+    arrivalDate,
+    departureDate,
+    roomsQueried: 0,
+    message: `Starting automated extraction (${triggerSource})...`
+  };
+
+  schedulerLogs.unshift(logEntry);
+  saveSchedulerState();
+
+  try {
+    if (!fs.existsSync(MASTER_WORKBOOK_FILE)) {
+      throw new Error('Master Workbook file has not been uploaded yet. Please upload a reference .xlsx file first.');
+    }
+
+    const buffer = fs.readFileSync(MASTER_WORKBOOK_FILE);
+    const parsed = ExcelService.parseWorkbookFromBuffer(buffer);
+    const hotelName = parsed.hotelName || schedulerConfig.masterHotelName || 'Hotel';
+    const hotelRooms = parsed.hotelRooms || [];
+    const mappedRooms = parsed.mappedRooms || [];
+
+    const activeRooms: CompetitorRoomMapping[] = mappedRooms.filter(
+      r => r.our_room_type && !['UNMAPPED', 'IGNORE', 'NONE', ''].includes(r.our_room_type.toUpperCase())
+    );
+
+    if (activeRooms.length === 0) {
+      throw new Error('No competitor rooms have been mapped in the Master Workbook.');
+    }
+
+    logEntry.hotelName = hotelName;
+    logEntry.roomsQueried = activeRooms.length;
+
+    console.log(`⏰ [Scheduler] Running automated extraction for ${hotelName} (${activeRooms.length} rooms)`);
+
+    const targetChat = schedulerConfig.telegramChatId || OWNER_CHAT_ID;
+    if (targetChat) {
+      await sendTelegramMessage(
+        targetChat,
+        `⏰ *YAMA Bot: Task Scheduler Auto-Run Triggered!*\n\n` +
+        `🏨 *Hotel:* ${hotelName}\n` +
+        `📅 *Check Dates:* \`${arrivalDate}\` → \`${departureDate}\`\n` +
+        `📊 *Monitored Rooms:* ${activeRooms.length} rooms\n` +
+        `⏳ *Status:* Contacting Booking.com API...`
+      );
+    }
+
+    const { priceReport, updatedRooms } = await RapidApiService.runPriceExtraction(
+      hotelRooms,
+      activeRooms,
+      arrivalDate,
+      departureDate,
+      RAPIDAPI_KEY,
+      RAPIDAPI_HOST
+    );
+
+    const outputBuffer = ExcelService.generateOutputWorkbookBuffer(
+      hotelName,
+      priceReport,
+      updatedRooms
+    );
+
+    const datePrefix = new Date().toISOString().slice(0, 10);
+    const outputFilename = `${datePrefix}-${hotelName}-Auto.xlsx`;
+
+    const summaryLines = priceReport.map((p: PriceReportRow) => {
+      const lowStr = typeof p.lowest_competitor_price === 'number' ? `RM ${p.lowest_competitor_price.toFixed(2)}` : 'N/A';
+      const avgStr = typeof p.average_competitor_price === 'number' ? `RM ${p.average_competitor_price.toFixed(2)}` : 'N/A';
+      return `• *${p.our_room_type}*: Lowest ${lowStr} | Average ${avgStr} (${p.valid_quotes} quotes)`;
+    });
+
+    const caption =
+      `⏰ *Automated Daily Report Completed!*\n\n` +
+      `🏨 *Hotel:* ${hotelName}\n` +
+      `📅 *Check Dates:* ${arrivalDate} → ${departureDate}\n` +
+      `⏱️ *Execution Time:* ${logEntry.timestamp}\n\n` +
+      `📊 *Market Rate Summary:*\n` +
+      (summaryLines.length > 0 ? summaryLines.join('\n') : '• No prices found.') +
+      `\n\n📁 Complete Excel report workbook attached above.`;
+
+    if (targetChat) {
+      await sendTelegramDocument(targetChat, outputBuffer, outputFilename, caption);
+    }
+
+    logEntry.status = 'success';
+    logEntry.outputFileName = outputFilename;
+    logEntry.message = `Successfully extracted prices for ${activeRooms.length} rooms and delivered report to Telegram (${targetChat}).`;
+    schedulerConfig.lastRunStatus = 'success';
+    schedulerConfig.lastRunTime = logEntry.timestamp;
+    schedulerConfig.nextRunTime = calculateNextRunTime();
+    console.log(`✅ [Scheduler] Completed successfully for ${hotelName}`);
+
+  } catch (err: any) {
+    console.error('❌ [Scheduler Error]:', err.message);
+    logEntry.status = 'failed';
+    logEntry.message = `Error: ${err.message}`;
+    schedulerConfig.lastRunStatus = 'failed';
+    schedulerConfig.lastRunTime = logEntry.timestamp;
+    schedulerConfig.nextRunTime = calculateNextRunTime();
+
+    const targetChat = schedulerConfig.telegramChatId || OWNER_CHAT_ID;
+    if (targetChat) {
+      await sendTelegramMessage(
+        targetChat,
+        `❌ *YAMA Bot Automated Run Error:*\n\`${err.message}\``
+      );
+    }
+  } finally {
+    isSchedulerRunning = false;
+    saveSchedulerState();
+  }
+}
+
+// Background scheduler checker (evaluates every 30 seconds)
+setInterval(() => {
+  if (!schedulerConfig.enabled || isSchedulerRunning) return;
+
+  const now = new Date();
+  const currentHours = String(now.getHours()).padStart(2, '0');
+  const currentMinutes = String(now.getMinutes()).padStart(2, '0');
+  const currentTimeString = `${currentHours}:${currentMinutes}`;
+  const currentDateString = now.toISOString().slice(0, 10);
+
+  if (currentTimeString === schedulerConfig.time && lastTriggeredDateString !== currentDateString) {
+    lastTriggeredDateString = currentDateString;
+    console.log(`⏰ [Scheduler] Time matched (${currentTimeString}). Triggering auto-run...`);
+    runScheduledTask('Daily Scheduled Cron');
+  }
+}, 30000);
+
+// ==========================================
+// TELEGRAM BOT HELPERS & HANDLERS
+// ==========================================
 async function sendTelegramMessage(chatId: string | number, text: string, replyToMsgId?: number) {
   try {
     const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
@@ -153,13 +440,12 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
   if (!fileName.toLowerCase().endsWith('.xlsx') && !fileName.toLowerCase().endsWith('.xls')) {
     await sendTelegramMessage(
       chatId,
-      '⚠️ Sila muat naik fail Excel (`.xlsx` atau `.xls`) daripada YAMA Bot Flow 1.',
+      '⚠️ Please upload a valid Excel workbook (`.xlsx` or `.xls`) exported from YAMA Bot Flow 1.',
       msgId
     );
     return;
   }
 
-  // Determine arrival & departure dates
   let arrivalDate: string;
   let departureDate: string;
 
@@ -176,28 +462,25 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
 
   console.log(`📥 [Chat ${chatId} (${senderName})] Received workbook: ${fileName} (${arrivalDate} -> ${departureDate})`);
 
-  // Mark status as BUSY
   daemonStatus.isProcessing = true;
   daemonStatus.status = 'busy';
-  daemonStatus.currentTask = `Sedang mengekstrak ${fileName} untuk ${senderName}...`;
+  daemonStatus.currentTask = `Extracting ${fileName} for ${senderName}...`;
   updateHeartbeat();
 
-  // Send immediate acknowledgement to this user
   await sendTelegramMessage(
     chatId,
-    `📥 *Workbook Diterima:*\n\`${fileName}\`\n\n` +
-    `📅 *Tarikh Pemeriksaan:* \`${arrivalDate}\` → \`${departureDate}\`\n` +
-    `⏳ *Memulakan ekstraksi harga YAMA Bot...*\n` +
-    `Sila tunggu sebentar sementara bot menghubungi Booking.com API...`,
+    `📥 *Workbook Received:*\n\`${fileName}\`\n\n` +
+    `📅 *Check Dates:* \`${arrivalDate}\` → \`${departureDate}\`\n` +
+    `⏳ *Initiating YAMA Bot price extraction...*\n` +
+    `Please wait while the bot contacts Booking.com API...`,
     msgId
   );
 
   await sendTelegramChatAction(chatId, 'upload_document');
 
-  // Download workbook
   const buffer = await downloadTelegramFile(fileId);
   if (!buffer) {
-    await sendTelegramMessage(chatId, '❌ Gagal memuat turun fail dari Telegram. Sila hantar semula.', msgId);
+    await sendTelegramMessage(chatId, '❌ Failed to download file from Telegram. Please resend.', msgId);
     daemonStatus.isProcessing = false;
     daemonStatus.status = 'online';
     daemonStatus.currentTask = null;
@@ -212,14 +495,14 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
     const mappedRooms = parsed.mappedRooms || [];
 
     const activeRooms: CompetitorRoomMapping[] = mappedRooms.filter(
-      (r: CompetitorRoomMapping) => r.our_room_type && !['UNMAPPED', 'IGNORE', 'NONE', ''].includes(r.our_room_type.toUpperCase())
+      r => r.our_room_type && !['UNMAPPED', 'IGNORE', 'NONE', ''].includes(r.our_room_type.toUpperCase())
     );
 
     if (activeRooms.length === 0) {
       await sendTelegramMessage(
         chatId,
-        `⚠️ Fail \`${fileName}\` tidak mengandungi bilik yang telah dipadankan.\n` +
-        `Sila buka Flow 1 di laman web dan padankan bilik hotel anda dahulu.`,
+        `⚠️ File \`${fileName}\` does not contain any mapped competitor rooms.\n` +
+        `Please open Flow 1 on the website and map your hotel rooms first.`,
         msgId
       );
       daemonStatus.isProcessing = false;
@@ -231,7 +514,16 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
 
     console.log(`🏨 Extracting rates for hotel: ${hotelName} (${activeRooms.length} mapped rooms)`);
 
-    // Call Booking.com RapidAPI
+    // Auto-save uploaded workbook as Master Workbook for the scheduler if none exists
+    if (!schedulerConfig.hasMasterWorkbook) {
+      fs.writeFileSync(MASTER_WORKBOOK_FILE, buffer);
+      schedulerConfig.hasMasterWorkbook = true;
+      schedulerConfig.masterHotelName = hotelName;
+      schedulerConfig.masterMappedRoomsCount = activeRooms.length;
+      saveSchedulerState();
+      console.log(`💾 Saved ${fileName} as Master Workbook for automated scheduling.`);
+    }
+
     const { priceReport, updatedRooms } = await RapidApiService.runPriceExtraction(
       hotelRooms,
       activeRooms,
@@ -246,7 +538,6 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
       }
     );
 
-    // Generate output workbook
     const outputBuffer = ExcelService.generateOutputWorkbookBuffer(
       hotelName,
       priceReport,
@@ -256,35 +547,31 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
     const datePrefix = new Date().toISOString().slice(0, 10);
     const outputFilename = `${datePrefix}-${hotelName}.xlsx`;
 
-    // Compile summary
     const summaryLines = priceReport.map((p: PriceReportRow) => {
       const lowStr = typeof p.lowest_competitor_price === 'number' ? `RM ${p.lowest_competitor_price.toFixed(2)}` : 'N/A';
       const avgStr = typeof p.average_competitor_price === 'number' ? `RM ${p.average_competitor_price.toFixed(2)}` : 'N/A';
-      return `• *${p.our_room_type}*: Terendah ${lowStr} | Purata ${avgStr} (${p.valid_quotes} sebut harga)`;
+      return `• *${p.our_room_type}*: Lowest ${lowStr} | Average ${avgStr} (${p.valid_quotes} quotes)`;
     });
 
     const caption =
-      `✅ *Laporan Selesai Diekstrak!*\n\n` +
+      `✅ *Price Extraction Completed!*\n\n` +
       `📍 *Hotel:* ${hotelName}\n` +
-      `📅 *Tarikh:* ${arrivalDate} → ${departureDate}\n\n` +
-      `📊 *Ringkasan Pasaran:*\n` +
-      (summaryLines.length > 0 ? summaryLines.join('\n') : '• Tiada harga ditemui.') +
-      `\n\n📁 Fail Excel laporan disertakan di atas.`;
+      `📅 *Dates:* ${arrivalDate} → ${departureDate}\n\n` +
+      `📊 *Market Rate Summary:*\n` +
+      (summaryLines.length > 0 ? summaryLines.join('\n') : '• No prices found.') +
+      `\n\n📁 Complete Excel report workbook attached above.`;
 
-    // Reply directly to the user who sent the workbook
     await sendTelegramDocument(chatId, outputBuffer, outputFilename, caption);
     console.log(`🚀 Report sent to chat ${chatId} (${senderName})`);
 
-    // If another user uploaded the file, send notice to owner
     if (String(chatId) !== String(OWNER_CHAT_ID) && OWNER_CHAT_ID) {
       await sendTelegramMessage(
         OWNER_CHAT_ID,
-        `🔔 *Notifikasi Pemilik:*\n` +
-        `Pengguna *${senderName}* (ID: \`${chatId}\`) baru sahaja memproses fail \`${fileName}\` untuk hotel *${hotelName}* melalui @${daemonStatus.botUsername}.`
+        `🔔 *Owner Notification:*\n` +
+        `User *${senderName}* (ID: \`${chatId}\`) just processed file \`${fileName}\` for hotel *${hotelName}* via @${daemonStatus.botUsername}.`
       );
     }
 
-    // Finish processing
     daemonStatus.isProcessing = false;
     daemonStatus.status = 'online';
     daemonStatus.currentTask = null;
@@ -302,8 +589,8 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
 
     await sendTelegramMessage(
       chatId,
-      `❌ *Ralat semasa ekstraksi harga:*\n\`${err.message || err}\`\n\n` +
-      `Pastikan format sheet adalah betul.`,
+      `❌ *Error during price extraction:*\n\`${err.message || err}\`\n\n` +
+      `Please ensure the sheet format is valid.`,
       msgId
     );
   }
@@ -348,15 +635,32 @@ async function startTelegramPoller() {
 
           if (text.startsWith('/start') || text.startsWith('/help')) {
             const welcome =
-              `👋 *Selamat datang ke YAMA Bot!*\n\n` +
-              `🚀 *Cara Penggunaan Automatik:*\n` +
-              `1. *Hantar terus fail Excel* (\`.xlsx\`) anda ke sini.\n` +
-              `2. YAMA Bot akan membaca mapping bilik dan memanggil API Booking.com secara automatik.\n` +
-              `3. Fail laporan bertarikh (\`YYYY-MM-DD-Hotel.xlsx\`) dan analisis harga pasaran akan dihantar semula ke sini!\n\n` +
-              `🛠 *Perintah Tambahan:*\n` +
-              `• \`/dates YYYY-MM-DD YYYY-MM-DD\` - Tukar tarikh semakan (cth: \`/dates 2026-11-10 2026-11-11\`)\n` +
-              `• \`/status\` - Semak status bot`;
+              `👋 *Welcome to YAMA Bot!*\n\n` +
+              `🚀 *How to Use:*\n` +
+              `1. *Send your Excel workbook* (\`.xlsx\`) directly here.\n` +
+              `2. YAMA Bot reads the room mappings and queries Booking.com API automatically.\n` +
+              `3. The dated Excel report workbook (\`YYYY-MM-DD-Hotel.xlsx\`) and market price analysis will be sent back directly here!\n\n` +
+              `⏰ *Task Scheduler Status:*\n` +
+              `Status: *${schedulerConfig.enabled ? `Active (Daily at ${schedulerConfig.time})` : 'Inactive'}*\n` +
+              `Next Run: \`${schedulerConfig.nextRunTime || 'None'}\`\n\n` +
+              `🛠 *Commands:*\n` +
+              `• \`/dates YYYY-MM-DD YYYY-MM-DD\` - Set custom check-in and check-out dates\n` +
+              `• \`/scheduler\` - Check automated scheduler status\n` +
+              `• \`/status\` - Check bot daemon status`;
             await sendTelegramMessage(chatId, welcome, msg.message_id);
+          } else if (text.startsWith('/scheduler')) {
+            await sendTelegramMessage(
+              chatId,
+              `⏰ *YAMA Task Scheduler Status:*\n` +
+              `• Auto-Run: *${schedulerConfig.enabled ? 'ACTIVE (ON)' : 'INACTIVE (OFF)'}*\n` +
+              `• Run Time: *${schedulerConfig.time}*\n` +
+              `• Frequency: *${schedulerConfig.frequency}*\n` +
+              `• Master Hotel: *${schedulerConfig.masterHotelName || 'Not Set'}*\n` +
+              `• Monitored Rooms: *${schedulerConfig.masterMappedRoomsCount} rooms*\n` +
+              `• Last Run: \`${schedulerConfig.lastRunTime || 'Never'}\`\n` +
+              `• Next Run: \`${schedulerConfig.nextRunTime || 'None'}\``,
+              msg.message_id
+            );
           } else if (text.startsWith('/dates')) {
             const parts = text.split(/\s+/);
             if (parts.length >= 3) {
@@ -364,22 +668,23 @@ async function startTelegramPoller() {
               userDates.set(chatId, { arrival: arr, departure: dep });
               await sendTelegramMessage(
                 chatId,
-                `✅ *Tarikh ditetapkan!*\nTarikh Masuk: \`${arr}\`\nTarikh Keluar: \`${dep}\`\n\nSila muat naik fail \`.xlsx\` anda sekarang.`,
+                `✅ *Dates set successfully!*\nCheck-in: \`${arr}\`\nCheck-out: \`${dep}\`\n\nPlease upload your \`.xlsx\` workbook now.`,
                 msg.message_id
               );
             } else {
               await sendTelegramMessage(
                 chatId,
-                `Format: \`/dates YYYY-MM-DD YYYY-MM-DD\`\nContoh: \`/dates 2026-11-01 2026-11-02\``,
+                `Format: \`/dates YYYY-MM-DD YYYY-MM-DD\`\nExample: \`/dates 2026-11-01 2026-11-02\``,
                 msg.message_id
               );
             }
           } else if (text.startsWith('/status')) {
             await sendTelegramMessage(
               chatId,
-              `⚙️ *Status YAMA Bot:*\n` +
-              `• Telegram Listener: *Aktif & Online (24/7)*\n` +
+              `⚙️ *YAMA Bot Status:*\n` +
+              `• Telegram Listener: *Active & Online (24/7)*\n` +
               `• RapidAPI Host: \`${RAPIDAPI_HOST}\`\n` +
+              `• Scheduler: *${schedulerConfig.enabled ? 'Active' : 'Inactive'}*\n` +
               `• Mode: *Live Booking.com API*`,
               msg.message_id
             );
@@ -397,6 +702,7 @@ async function startTelegramPoller() {
 
 // Start Server & Telegram Daemon
 async function startServer() {
+  // IMPORTANT: Vite middlewares must be mounted AFTER API routes so /api/* is handled by Express
   if (!isProd) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -412,7 +718,6 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌐 YAMA Bot Full-Stack Server running at http://0.0.0.0:${PORT}`);
-    // Start Telegram listener inside the same long-running process
     startTelegramPoller();
   });
 }
