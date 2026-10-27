@@ -81,7 +81,8 @@ export class ExcelService {
     arrivalDate: string,
     departureDate: string,
     priceReport: PriceReportRow[],
-    updatedRooms: CompetitorRoomMapping[]
+    updatedRooms: CompetitorRoomMapping[],
+    autoDownload: boolean = false
   ): { filename: string; blob: Blob } {
     const wb = XLSX.utils.book_new();
 
@@ -115,10 +116,12 @@ export class ExcelService {
     const datePrefix = new Date().toISOString().slice(0, 10);
     const filename = `${datePrefix}-${hotelName}.xlsx`;
 
-    // Trigger download in browser
-    XLSX.writeFile(wb, filename);
+    // Trigger download in browser ONLY if explicitly requested via download button
+    if (autoDownload) {
+      XLSX.writeFile(wb, filename);
+    }
 
-    // Also return buffer / blob for Telegram dispatch
+    // Return buffer / blob for Telegram dispatch without downloading to PC
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 

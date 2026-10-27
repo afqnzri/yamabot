@@ -10,9 +10,35 @@ import {
   DEFAULT_MAPPED_ROOMS 
 } from './data/defaultHotel';
 import { HotelRoomType, CompetitorHotel, CompetitorRoomMapping } from './types/yama';
+import { BotStatusService } from './services/botStatusService';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'flow1' | 'flow2'>('flow1');
+
+  // Live Bot Daemon Status
+  const [botStatus, setBotStatus] = useState({
+    isOnline: false,
+    isBusy: false,
+    currentTask: null as string | null,
+    lastCompletedFile: null as string | null,
+    lastCompletedAt: null as string | null,
+    processedCount: 0,
+    botUsername: 'YamaHotelBot'
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchStatus = async () => {
+      const res = await BotStatusService.checkStatus();
+      if (mounted) setBotStatus(res);
+    };
+    fetchStatus();
+    const timer = setInterval(fetchStatus, 3000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   // Core Workbook state (Pre-loaded with MSP D'Spark Hotel Bayu example)
   const [hotelName, setHotelName] = useState<string>(() => {
@@ -121,6 +147,7 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         isSimulated={!rapidApiKey.trim()}
         telegramConfigured={Boolean(telegramToken.trim() && telegramChatId.trim())}
+        botStatus={botStatus}
       />
 
       {/* Main Content Area */}
@@ -153,6 +180,7 @@ export default function App() {
             onUploadWorkbook={handleUploadWorkbook}
             uploadedFileName={uploadedFileName}
             onSwitchToFlow1={() => setActiveTab('flow1')}
+            botStatus={botStatus}
           />
         )}
       </main>

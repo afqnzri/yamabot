@@ -1,0 +1,10 @@
+{
+  "status": "online",
+  "botUsername": "YamaHotelBot",
+  "timestamp": 0,
+  "isProcessing": false,
+  "currentTask": null,
+  "lastCompletedFile": null,
+  "lastCompletedAt": null,
+  "processedCount": 0
+}

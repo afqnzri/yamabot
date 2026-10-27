@@ -12,6 +12,13 @@ interface NavbarProps {
   onOpenSettings: () => void;
   isSimulated: boolean;
   telegramConfigured: boolean;
+  botStatus: {
+    isOnline: boolean;
+    isBusy: boolean;
+    currentTask: string | null;
+    processedCount: number;
+    botUsername: string;
+  };
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -19,7 +26,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   onOpenSettings,
   isSimulated,
-  telegramConfigured
+  telegramConfigured,
+  botStatus
 }) => {
   return (
     <header className="bg-white text-slate-900 border-b border-slate-200 sticky top-0 z-30">
@@ -67,6 +75,50 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className={`w-2 h-2 rounded-full ${isSimulated ? 'bg-amber-500' : 'bg-emerald-600'}`} />
               <span className="font-medium text-slate-600">
                 {isSimulated ? 'Mod Simulasi' : 'Live Booking API'}
+              </span>
+            </div>
+
+            {/* Live/Offline Telegram Daemon Indicator */}
+            <div
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                botStatus.isBusy
+                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                  : botStatus.isOnline
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                    : 'bg-rose-50 text-rose-800 border-rose-200'
+              }`}
+              title={
+                botStatus.isBusy
+                  ? `Bot sedang memproses fail dari Telegram: ${botStatus.currentTask || 'Sedang memproses...'}`
+                  : botStatus.isOnline
+                    ? `Bot @${botStatus.botUsername} LIVE & aktif mendengar Telegram. (${botStatus.processedCount} fail diproses)`
+                    : 'Bot Listener OFFLINE. Jalankan "npm run telegram:bot" di terminal.'
+              }
+            >
+              <span className="relative flex h-2 w-2">
+                {botStatus.isOnline && (
+                  <span
+                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                      botStatus.isBusy ? 'bg-amber-400' : 'bg-emerald-400'
+                    }`}
+                  />
+                )}
+                <span
+                  className={`relative inline-flex rounded-full h-2 w-2 ${
+                    botStatus.isBusy
+                      ? 'bg-amber-500'
+                      : botStatus.isOnline
+                        ? 'bg-emerald-600'
+                        : 'bg-rose-500'
+                  }`}
+                />
+              </span>
+              <span className="text-[11px]">
+                {botStatus.isBusy
+                  ? 'Telegram: Memproses...'
+                  : botStatus.isOnline
+                    ? 'Bot: LIVE'
+                    : 'Bot: OFFLINE'}
               </span>
             </div>
 

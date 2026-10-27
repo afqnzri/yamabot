@@ -1,11 +1,14 @@
 /**
  * YAMA Bot - Automated Telegram Runner Daemon
  * Runs continuous long-polling for @YamaHotelBot.
- * Automatically accepts .xlsx workbooks uploaded by users in Telegram,
+ * Automatically accepts .xlsx workbooks uploaded by any user in Telegram,
  * runs Flow 2 price extraction via Booking.com RapidAPI,
- * and replies with the generated dated Excel workbook and price report!
+ * and replies directly to the uploader with the generated dated Excel workbook and price report!
+ * Also maintains live heartbeat in public/bot_status.json for the web UI.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { ExcelService } from './src/services/excelService';
 import { RapidApiService } from './src/services/rapidApiService';
 import { CompetitorRoomMapping, PriceReportRow } from './src/types/yama';
@@ -13,8 +16,36 @@ import { CompetitorRoomMapping, PriceReportRow } from './src/types/yama';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8806821205:AAF6Z956tPfW2BsnMKzPkDmEzuAj1_5VYFM';
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || 'f659e796f5mshede0a10caa98d60p1f7437jsn2a0469f81edb';
 const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || 'booking-com15.p.rapidapi.com';
+const OWNER_CHAT_ID = process.env.TELEGRAM_OWNER_CHAT_ID || '54041669';
+
+const STATUS_FILE = path.resolve('public', 'bot_status.json');
 
 const userDates = new Map<number | string, { arrival: string; departure: string }>();
+
+// Daemon Status Object
+const daemonStatus = {
+  status: 'online',
+  botUsername: 'YamaHotelBot',
+  timestamp: Date.now(),
+  isProcessing: false,
+  currentTask: null as string | null,
+  lastCompletedFile: null as string | null,
+  lastCompletedAt: null as string | null,
+  processedCount: 0
+};
+
+function writeStatus() {
+  try {
+    daemonStatus.timestamp = Date.now();
+    fs.writeFileSync(STATUS_FILE, JSON.stringify(daemonStatus, null, 2));
+  } catch {
+    // ignore
+  }
+}
+
+// Continuous heartbeat every 3 seconds
+setInterval(writeStatus, 3000);
+writeStatus();
 
 async function sendTelegramMessage(chatId: string | number, text: string, replyToMsgId?: number) {
   try {
@@ -91,6 +122,7 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
   const fileName: string = doc.file_name || 'hotel_workbook.xlsx';
   const fileId: string = doc.file_id;
   const msgId: number = message.message_id;
+  const senderName = message.from?.first_name || message.from?.username || `User ${chatId}`;
 
   if (!fileName.toLowerCase().endsWith('.xlsx') && !fileName.toLowerCase().endsWith('.xls')) {
     await sendTelegramMessage(
@@ -116,9 +148,15 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
     departureDate = dayAfter.toISOString().slice(0, 10);
   }
 
-  console.log(`📥 [Chat ${chatId}] Processing workbook: ${fileName} for dates: ${arrivalDate} -> ${departureDate}`);
+  console.log(`📥 [Chat ${chatId} (${senderName})] Processing workbook: ${fileName} for dates: ${arrivalDate} -> ${departureDate}`);
 
-  // Send immediate acknowledgement
+  // Mark status as BUSY
+  daemonStatus.isProcessing = true;
+  daemonStatus.status = 'busy';
+  daemonStatus.currentTask = `Sedang mengekstrak ${fileName} untuk ${senderName}...`;
+  writeStatus();
+
+  // Send immediate acknowledgement to this specific uploader
   await sendTelegramMessage(
     chatId,
     `📥 *Workbook Diterima:*\n\`${fileName}\`\n\n` +
@@ -134,6 +172,10 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
   const buffer = await downloadTelegramFile(fileId);
   if (!buffer) {
     await sendTelegramMessage(chatId, '❌ Gagal memuat turun fail dari Telegram. Sila hantar semula.', msgId);
+    daemonStatus.isProcessing = false;
+    daemonStatus.status = 'online';
+    daemonStatus.currentTask = null;
+    writeStatus();
     return;
   }
 
@@ -155,6 +197,10 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
         `Sila buka Flow 1 di laman web dan padankan bilik hotel anda dahulu.`,
         msgId
       );
+      daemonStatus.isProcessing = false;
+      daemonStatus.status = 'online';
+      daemonStatus.currentTask = null;
+      writeStatus();
       return;
     }
 
@@ -169,7 +215,8 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
       RAPIDAPI_KEY,
       RAPIDAPI_HOST,
       (pct: number, status: string) => {
-        console.log(`   [${pct}%] ${status}`);
+        daemonStatus.currentTask = `[${pct}%] ${status}`;
+        writeStatus();
         sendTelegramChatAction(chatId, 'upload_document');
       }
     );
@@ -199,12 +246,35 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
       (summaryLines.length > 0 ? summaryLines.join('\n') : '• Tiada harga ditemui.') +
       `\n\n📁 Fail Excel laporan disertakan di atas.`;
 
-    // Reply directly with the dated Excel document!
+    // Reply directly to the specific user who uploaded the workbook!
     await sendTelegramDocument(chatId, outputBuffer, outputFilename, caption);
-    console.log(`🚀 Successfully completed and sent report for ${hotelName} to chat ${chatId}`);
+    console.log(`🚀 Successfully completed and sent report for ${hotelName} to chat ${chatId} (${senderName})`);
+
+    // If another user uploaded the file, notify the Owner as well
+    if (String(chatId) !== String(OWNER_CHAT_ID) && OWNER_CHAT_ID) {
+      await sendTelegramMessage(
+        OWNER_CHAT_ID,
+        `🔔 *Notifikasi Pemilik:*\n` +
+        `Pengguna *${senderName}* (Chat ID: \`${chatId}\`) baru sahaja memproses fail \`${fileName}\` untuk hotel *${hotelName}* melalui @${daemonStatus.botUsername}.`
+      );
+    }
+
+    // Update daemon status
+    daemonStatus.isProcessing = false;
+    daemonStatus.status = 'online';
+    daemonStatus.currentTask = null;
+    daemonStatus.lastCompletedFile = outputFilename;
+    daemonStatus.lastCompletedAt = new Date().toLocaleTimeString();
+    daemonStatus.processedCount += 1;
+    writeStatus();
 
   } catch (err: any) {
     console.error('Error during Telegram auto extraction:', err);
+    daemonStatus.isProcessing = false;
+    daemonStatus.status = 'online';
+    daemonStatus.currentTask = null;
+    writeStatus();
+
     await sendTelegramMessage(
       chatId,
       `❌ *Ralat semasa ekstraksi harga:*\n\`${err.message || err}\`\n\n` +
@@ -227,7 +297,9 @@ async function main() {
       console.error('❌ Telegram Bot Token is invalid:', meData);
       process.exit(1);
     }
-    console.log(`✅ Connected as @${meData.result.username} (${meData.result.first_name})`);
+    daemonStatus.botUsername = meData.result.username || 'YamaHotelBot';
+    writeStatus();
+    console.log(`✅ Connected as @${daemonStatus.botUsername} (${meData.result.first_name})`);
   } catch (e: any) {
     console.error('❌ Failed to reach Telegram API:', e.message);
     process.exit(1);

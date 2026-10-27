@@ -34,6 +34,15 @@ interface Flow2ExtractionProps {
   onUploadWorkbook: (file: File, autoRun?: boolean) => Promise<any>;
   uploadedFileName?: string | null;
   onSwitchToFlow1: () => void;
+  botStatus?: {
+    isOnline: boolean;
+    isBusy: boolean;
+    currentTask: string | null;
+    lastCompletedFile: string | null;
+    lastCompletedAt: string | null;
+    processedCount: number;
+    botUsername: string;
+  };
 }
 
 export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
@@ -47,7 +56,8 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
   onOpenSettings,
   onUploadWorkbook,
   uploadedFileName,
-  onSwitchToFlow1
+  onSwitchToFlow1,
+  botStatus
 }) => {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
@@ -146,7 +156,8 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
       extractionResult.arrivalDate,
       extractionResult.departureDate,
       extractionResult.priceReport,
-      extractionResult.updatedRooms
+      extractionResult.updatedRooms,
+      true // Muat turun ke PC hanya bila butang ini ditekan
     );
   };
 
@@ -161,12 +172,14 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
     setTelegramStatus(null);
 
     try {
+      // Hantar ke Telegram SAHAJA (autoDownload = false, tiada auto-download ke PC)
       const { filename, blob } = ExcelService.exportOutputWorkbook(
         extractionResult.hotelName,
         extractionResult.arrivalDate,
         extractionResult.departureDate,
         extractionResult.priceReport,
-        extractionResult.updatedRooms
+        extractionResult.updatedRooms,
+        false
       );
 
       const lines = [
@@ -284,28 +297,48 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
             <div className="relative flex items-center justify-center">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="w-4 h-4 rounded-full bg-emerald-400/30 absolute" />
+              <span className={`w-2.5 h-2.5 rounded-full ${
+                botStatus?.isBusy
+                  ? 'bg-amber-500 animate-pulse'
+                  : botStatus?.isOnline
+                    ? 'bg-emerald-500 animate-pulse'
+                    : 'bg-rose-500'
+              }`} />
+              {botStatus?.isOnline && (
+                <span className={`w-4 h-4 rounded-full absolute ${
+                  botStatus?.isBusy ? 'bg-amber-400/30' : 'bg-emerald-400/30'
+                }`} />
+              )}
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-xs text-slate-900">
                   Telegram Bot Auto-Runner:
                 </span>
                 <a
-                  href="https://t.me/YamaHotelBot"
+                  href={`https://t.me/${botStatus?.botUsername || 'YamaHotelBot'}`}
                   target="_blank"
                   rel="noreferrer"
                   className="font-bold text-xs text-blue-600 hover:underline flex items-center gap-1"
                 >
-                  @YamaHotelBot <ExternalLink className="w-3 h-3" />
+                  @{botStatus?.botUsername || 'YamaHotelBot'} <ExternalLink className="w-3 h-3" />
                 </a>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                  Online
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                  botStatus?.isBusy
+                    ? 'bg-amber-50 text-amber-800 border-amber-300'
+                    : botStatus?.isOnline
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                }`}>
+                  {botStatus?.isBusy ? 'SEDANG MEMPROSES' : botStatus?.isOnline ? 'LIVE (ONLINE)' : 'OFFLINE'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Bila anda upload fail .xlsx ke dalam chat Telegram, bot akan memproses dan membalas fail laporan secara automatik.
+                {botStatus?.isBusy
+                  ? `Sedang memproses fail di Telegram: ${botStatus.currentTask || ''}`
+                  : botStatus?.isOnline
+                    ? `Daemon aktif mendengar Telegram. (${botStatus.processedCount} fail diproses sesi ini)`
+                    : 'Daemon offline. Sila pastikan bot runner dijalankan.'}
               </p>
             </div>
           </div>
@@ -329,6 +362,24 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
               </button>
             )}
           </div>
+        </div>
+
+        {/* Live Processing Notice */}
+        {botStatus?.isBusy && (
+          <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600 shrink-0" />
+            <span className="font-medium">Sedang Berjalan di Telegram: {botStatus.currentTask || 'Mengekstrak harga...'}</span>
+          </div>
+        )}
+
+        {/* Multi-User Support Notice */}
+        <div className="p-2.5 bg-blue-50/70 border border-blue-200/80 rounded-lg text-xs text-blue-900 space-y-1">
+          <div className="font-bold flex items-center gap-1.5 text-blue-950 text-[11px]">
+            <span>👥 Sokongan Pelbagai Pengguna (Multi-User):</span>
+          </div>
+          <p className="text-[11px] text-blue-800 leading-relaxed">
+            Setiap pengguna (staf hotel, pengurus, rakan sekerja) yang menghantar fail <code>.xlsx</code> ke <strong>@{botStatus?.botUsername || 'YamaHotelBot'}</strong> akan menerima laporan harga terus ke akaun Telegram mereka sendiri. Output tidak terhad kepada satu ID sahaja!
+          </p>
         </div>
 
         {/* 3 Petunjuk Visual: Bagaimana Tahu Python Sedang Berjalan? */}
