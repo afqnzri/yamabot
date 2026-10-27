@@ -52,7 +52,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   });
 
   // Python tab state
-  const [activeScriptTab, setActiveScriptTab] = useState<'flow2' | 'flow1' | 'excel' | 'api' | 'telegram' | 'cron'>('flow2');
+  const [activeScriptTab, setActiveScriptTab] = useState<'listener' | 'flow2' | 'flow1' | 'excel' | 'api' | 'telegram' | 'cron'>('listener');
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -99,7 +99,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setTestingTelegram(false);
   };
 
+  const [detectingChatId, setDetectingChatId] = useState(false);
+
+  const handleAutoDetectChatId = async () => {
+    if (!telegramToken.trim()) {
+      setTelegramStatus({ type: 'error', message: 'Sila masukkan Telegram Bot Token terlebih dahulu.' });
+      return;
+    }
+    setDetectingChatId(true);
+    setTelegramStatus({ type: 'idle', message: '' });
+    const res = await TelegramService.getLatestChatId(telegramToken);
+    if (res.ok && res.chatId) {
+      setTelegramChatId(res.chatId);
+      setTelegramStatus({
+        type: 'success',
+        message: `Chat ID (${res.chatId}) daripada "${res.senderName}" berjaya dikesan dan disimpan!`
+      });
+    } else {
+      setTelegramStatus({
+        type: 'error',
+        message: res.error || 'Gagal mengesan Chat ID. Sila pastikan anda buka bot @YamaHotelBot di Telegram dan tekan START dahulu.'
+      });
+    }
+    setDetectingChatId(false);
+  };
+
   const scripts = {
+    listener: {
+      name: 'telegram_bot_listener.py',
+      description: 'Bot Telegram interaktif: Terima muat naik fail .xlsx terus dari chat Telegram & automatik jalankan Flow 2!',
+      code: `"""
+YAMA Bot - Interactive Telegram Auto-Runner Daemon
+Jalankan bot ini di PC/Server anda:
+  python -m yama_bot.telegram_bot_listener
+
+Cara Guna:
+1. Drag & drop fail mapping .xlsx (Flow 1) terus ke dalam chat bot Telegram anda.
+2. Bot muat turun fail & automatik jalankan Flow 2 (Booking.com API).
+3. Bot hantar semula fail Excel bertarikh (YYYY-MM-DD-Hotel.xlsx) dan rumusan harga pasaran!
+"""
+from yama_bot.telegram_bot_listener import main
+
+if __name__ == "__main__":
+    main()`
+    },
     flow2: {
       name: 'flow2_extract.py',
       description: 'Skrip ekstraksi harga berkala mengikut matching ID bilik dan hantar ke Telegram.',
@@ -364,20 +407,40 @@ jobs:
                 </div>
 
                 <div>
-                  <label className="block text-xs text-slate-600 mb-1">Telegram Chat ID</label>
-                  <input
-                    type="text"
-                    value={telegramChatId}
-                    onChange={(e) => setTelegramChatId(e.target.value)}
-                    placeholder="cth: 123456789 atau group ID -1001234567890"
-                    className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 font-mono"
-                  />
-                  <span className="text-[11px] text-slate-400 mt-0.5 block">
-                    Tip: Hantar mesej ke <code>@userinfobot</code> di Telegram untuk lihat Chat ID anda dengan pantas.
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs text-slate-600">Telegram Chat ID</label>
+                    <a
+                      href="https://t.me/YamaHotelBot"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      Buka @YamaHotelBot di Telegram <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={telegramChatId}
+                      onChange={(e) => setTelegramChatId(e.target.value)}
+                      placeholder="cth: 123456789 atau tekan butang 'Kesan'"
+                      className="flex-1 px-3.5 py-2 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAutoDetectChatId}
+                      disabled={detectingChatId}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 transition-colors shrink-0"
+                    >
+                      {detectingChatId ? 'Mencari...' : 'Kesan Chat ID'}
+                    </button>
+                  </div>
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Buka <code>@YamaHotelBot</code> di Telegram, tekan <strong>START</strong>, kemudian klik <strong>Kesan Chat ID</strong> di atas.
                   </span>
                 </div>
 
-                <div className="pt-1">
+                <div className="pt-1 flex flex-wrap gap-2">
                   <button
                     onClick={handleTestTelegram}
                     disabled={testingTelegram}
@@ -404,6 +467,20 @@ jobs:
                     <span>{telegramStatus.message}</span>
                   </div>
                 )}
+
+                {/* Telegram Bot Auto-Runner Callout */}
+                <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl space-y-1.5 text-xs text-blue-900">
+                  <div className="font-bold flex items-center gap-1.5 text-blue-950">
+                    <Zap className="w-4 h-4 text-blue-600" />
+                    Muat Naik Fail Terus dari Telegram & Auto-Run!
+                  </div>
+                  <p className="text-blue-800 leading-relaxed text-[11px]">
+                    Anda boleh menghantar fail <code>.xlsx</code> mapping terus ke dalam chat bot Telegram anda tanpa buka browser. Skrip Python <code>yama_bot.telegram_bot_listener</code> akan memuat turun fail, menjalankan Flow 2 dengan Booking.com API secara automatik, dan membalas fail laporan bertarikh terus ke chat anda!
+                  </p>
+                  <p className="text-[11px] font-mono bg-blue-100/80 p-1.5 rounded text-blue-950">
+                    $ python -m yama_bot.telegram_bot_listener
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -459,6 +536,7 @@ jobs:
             <div className="space-y-4">
               <div className="flex border-b border-slate-200 gap-1.5 overflow-x-auto pb-1 text-xs">
                 {[
+                  { id: 'listener', label: 'telegram_listener.py (Auto-Run)' },
                   { id: 'flow2', label: 'flow2_extract.py' },
                   { id: 'flow1', label: 'flow1_setup.py' },
                   { id: 'excel', label: 'excel_engine.py' },

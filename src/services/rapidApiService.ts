@@ -124,16 +124,36 @@ export class RapidApiService {
     });
     if (!res.ok) throw new Error(`RapidAPI getRoomList error: ${res.statusText}`);
     const data = await res.json();
-    const rooms = data.data?.rooms || data.data || data.rooms || [];
+    const payload = data.data || data || {};
     
-    return rooms.map((room: any) => {
+    // booking-com15 returns array under payload.block or payload.rooms
+    let rawList: any[] = [];
+    if (Array.isArray(payload.block)) {
+      rawList = payload.block;
+    } else if (Array.isArray(payload.rooms)) {
+      rawList = payload.rooms;
+    } else if (Array.isArray(payload)) {
+      rawList = payload;
+    } else if (payload.rooms && typeof payload.rooms === 'object') {
+      rawList = Object.entries(payload.rooms).map(([id, info]: [string, any]) => ({
+        room_id: id,
+        ...info
+      }));
+    }
+
+    return rawList.map((room: any) => {
       let gross: number | null = null;
-      const price = room.gross_amount || room.price || room.composite_price_breakdown?.gross_amount?.value;
-      if (typeof price === 'number') gross = price;
-      else if (typeof price === 'string') gross = parseFloat(price) || null;
+      const price = room.product_price_breakdown?.all_inclusive_amount?.value 
+                 ?? room.product_price_breakdown?.gross_amount?.value
+                 ?? room.gross_amount 
+                 ?? room.price 
+                 ?? room.composite_price_breakdown?.gross_amount?.value;
+      if (typeof price === 'number') gross = Math.round(price * 100) / 100;
+      else if (typeof price === 'string') gross = Math.round(parseFloat(price) * 100) / 100 || null;
+
       return {
-        competitor_room_id: String(room.room_id || room.id),
-        room_name: room.room_name || room.name || 'Standard Room',
+        competitor_room_id: String(room.room_id || room.block_id || room.id),
+        room_name: room.name_without_policy || room.name || room.room_name || 'Standard Room',
         gross_amount: gross
       };
     });

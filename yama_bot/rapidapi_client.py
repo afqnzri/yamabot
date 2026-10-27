@@ -122,32 +122,51 @@ class RapidApiBookingClient:
             response.raise_for_status()
             data = response.json()
             
+            payload = data.get("data", {}) if isinstance(data, dict) else data
             raw_rooms = []
-            if isinstance(data, dict):
-                raw_rooms = data.get("data", {}).get("rooms", []) or data.get("data", []) or data.get("rooms", [])
+            if isinstance(payload, dict):
+                if isinstance(payload.get("block"), list):
+                    raw_rooms = payload.get("block", [])
+                elif isinstance(payload.get("rooms"), list):
+                    raw_rooms = payload.get("rooms", [])
+                elif isinstance(payload.get("rooms"), dict):
+                    raw_rooms = [{"room_id": k, **v} for k, v in payload.get("rooms", {}).items()]
+                else:
+                    raw_rooms = payload.get("rooms", [])
             elif isinstance(data, list):
                 raw_rooms = data
 
             parsed_rooms = []
             for room in raw_rooms:
-                room_id = str(room.get("room_id") or room.get("id") or "")
-                room_name = room.get("room_name") or room.get("name") or "Standard Room"
+                room_id = str(room.get("room_id") or room.get("block_id") or room.get("id") or "")
+                room_name = room.get("name_without_policy") or room.get("name") or room.get("room_name") or "Standard Room"
                 
                 # Extract gross amount
                 gross_amount = None
-                price_info = room.get("gross_amount") or room.get("price") or room.get("composite_price_breakdown", {})
-                
-                if isinstance(price_info, (int, float)):
-                    gross_amount = float(price_info)
-                elif isinstance(price_info, dict):
-                    gross_val = (price_info.get("gross_amount", {}).get("value") 
-                                 or price_info.get("all_inclusive_amount", {}).get("value")
-                                 or price_info.get("value"))
-                    if gross_val is not None:
+                ppb = room.get("product_price_breakdown", {})
+                if isinstance(ppb, dict):
+                    val = (ppb.get("all_inclusive_amount", {}).get("value")
+                           or ppb.get("gross_amount", {}).get("value")
+                           or ppb.get("value"))
+                    if val is not None:
                         try:
-                            gross_amount = float(gross_val)
+                            gross_amount = round(float(val), 2)
                         except (ValueError, TypeError):
                             gross_amount = None
+
+                if gross_amount is None:
+                    price_info = room.get("gross_amount") or room.get("price") or room.get("composite_price_breakdown", {})
+                    if isinstance(price_info, (int, float)):
+                        gross_amount = round(float(price_info), 2)
+                    elif isinstance(price_info, dict):
+                        gross_val = (price_info.get("gross_amount", {}).get("value") 
+                                     or price_info.get("all_inclusive_amount", {}).get("value")
+                                     or price_info.get("value"))
+                        if gross_val is not None:
+                            try:
+                                gross_amount = round(float(gross_val), 2)
+                            except (ValueError, TypeError):
+                                gross_amount = None
 
                 parsed_rooms.append({
                     "competitor_hotel_id": str(hotel_id),

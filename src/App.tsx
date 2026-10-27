@@ -12,7 +12,7 @@ import {
 import { HotelRoomType, CompetitorHotel, CompetitorRoomMapping } from './types/yama';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'flow1' | 'flow2'>('flow2');
+  const [activeTab, setActiveTab] = useState<'flow1' | 'flow2'>('flow1');
 
   // Core Workbook state (Pre-loaded with MSP D'Spark Hotel Bayu example)
   const [hotelName, setHotelName] = useState<string>(() => {
@@ -36,7 +36,8 @@ export default function App() {
 
   // Settings
   const [rapidApiKey, setRapidApiKey] = useState<string>(() => {
-    return localStorage.getItem('yama_rapidapi_key') || '';
+    const saved = localStorage.getItem('yama_rapidapi_key');
+    return (saved && saved.trim()) ? saved : 'f659e796f5mshede0a10caa98d60p1f7437jsn2a0469f81edb';
   });
 
   const [rapidApiHost, setRapidApiHost] = useState<string>(() => {
@@ -44,7 +45,8 @@ export default function App() {
   });
 
   const [telegramToken, setTelegramToken] = useState<string>(() => {
-    return localStorage.getItem('yama_telegram_token') || '';
+    const saved = localStorage.getItem('yama_telegram_token');
+    return (saved && saved.trim()) ? saved : '8806821205:AAF6Z956tPfW2BsnMKzPkDmEzuAj1_5VYFM';
   });
 
   const [telegramChatId, setTelegramChatId] = useState<string>(() => {
