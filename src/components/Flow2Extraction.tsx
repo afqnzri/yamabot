@@ -7,7 +7,15 @@ import {
   FileSpreadsheet, 
   RefreshCw,
   Upload,
-  ArrowRight
+  ArrowRight,
+  Radio,
+  CheckCircle2,
+  Clock,
+  Terminal,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  FileText
 } from 'lucide-react';
 import { HotelRoomType, CompetitorRoomMapping, PriceReportRow, ExtractionResult } from '../types/yama';
 import { RapidApiService } from '../services/rapidApiService';
@@ -59,6 +67,29 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
   const [outputSheetTab, setOutputSheetTab] = useState<'competitor_price' | 'competitor_room'>('competitor_price');
   const [sendingTelegram, setSendingTelegram] = useState(false);
   const [telegramStatus, setTelegramStatus] = useState<string | null>(null);
+
+  // Telegram Live Monitor state
+  const [checkingTelegram, setCheckingTelegram] = useState(false);
+  const [telegramLogs, setTelegramLogs] = useState<any[] | null>(null);
+  const [botInfo, setBotInfo] = useState<{ name: string; username: string } | null>(null);
+  const [showTelegramLogs, setShowTelegramLogs] = useState(false);
+
+  const handleCheckTelegram = async () => {
+    if (!telegramToken) {
+      onOpenSettings();
+      return;
+    }
+    setCheckingTelegram(true);
+    const res = await TelegramService.getRecentActivity(telegramToken);
+    if (res.ok) {
+      setTelegramLogs(res.recentUpdates || []);
+      if (res.botInfo) setBotInfo(res.botInfo);
+      setShowTelegramLogs(true);
+    } else {
+      setUploadMessage(`Ralat semakan Telegram: ${res.error}`);
+    }
+    setCheckingTelegram(false);
+  };
 
   const activeMappedRooms = mappedRooms.filter(
     r => r.our_room_type && !['UNMAPPED', 'IGNORE', 'NONE', ''].includes(r.our_room_type.toUpperCase())
@@ -247,6 +278,127 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
           <button onClick={() => setTelegramStatus(null)} className="underline text-[11px] font-semibold">Tutup</button>
         </div>
       )}
+
+      {/* Telegram Bot Live Status & Monitor Card */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex items-center justify-center">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="w-4 h-4 rounded-full bg-emerald-400/30 absolute" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-xs text-slate-900">
+                  Telegram Bot Auto-Runner:
+                </span>
+                <a
+                  href="https://t.me/YamaHotelBot"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-bold text-xs text-blue-600 hover:underline flex items-center gap-1"
+                >
+                  @YamaHotelBot <ExternalLink className="w-3 h-3" />
+                </a>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                  Online
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Bila anda upload fail .xlsx ke dalam chat Telegram, bot akan memproses dan membalas fail laporan secara automatik.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCheckTelegram}
+              disabled={checkingTelegram}
+              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-slate-200 shrink-0"
+            >
+              <RefreshCw className={`w-3 h-3 ${checkingTelegram ? 'animate-spin' : ''}`} />
+              <span>{checkingTelegram ? 'Menyemak...' : 'Semak Mesej Telegram Terkini'}</span>
+            </button>
+            {telegramLogs && (
+              <button
+                onClick={() => setShowTelegramLogs(!showTelegramLogs)}
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 text-xs font-medium"
+                title="Togol Paparan Log"
+              >
+                {showTelegramLogs ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 3 Petunjuk Visual: Bagaimana Tahu Python Sedang Berjalan? */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
+              <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-[10px] flex items-center justify-center font-bold">1</span>
+              <span>Balasan Segera di Telegram</span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-snug">
+              Sebaik fail .xlsx dihantar, bot akan balas serta-merta: <em>"📥 Workbook Diterima... ⏳ Memulakan ekstraksi..."</em>. Jika Python tidak aktif, tiada balasan diterima.
+            </p>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
+              <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-[10px] flex items-center justify-center font-bold">2</span>
+              <span>Status Header Telegram</span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-snug">
+              Semasa menghubungi Booking.com API, status di atas chat akan memaparkan <span className="font-semibold text-slate-700">"yamabot is sending a file..."</span>.
+            </p>
+          </div>
+
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px]">
+              <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-[10px] flex items-center justify-center font-bold">3</span>
+              <span>Hasil Laporan Dihantar</span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-snug">
+              Bot membalas fail laporan Excel bertarikh <span className="font-mono text-[10px]">YYYY-MM-DD-Hotel.xlsx</span> berserta analisis harga dalam chat Telegram anda.
+            </p>
+          </div>
+        </div>
+
+        {/* Live Telegram Recent Messages Log (Optional Expand) */}
+        {showTelegramLogs && telegramLogs && (
+          <div className="mt-2 pt-3 border-t border-slate-100 space-y-2">
+            <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold">
+              <span>Mesej / Fail Terkini Diterima oleh @{botInfo?.username || 'YamaHotelBot'}:</span>
+              <span>{telegramLogs.length} rekod aktiviti</span>
+            </div>
+
+            {telegramLogs.length === 0 ? (
+              <p className="text-xs text-slate-500 italic p-3 bg-slate-50 rounded-lg text-center">
+                Tiada mesej baru diterima lagi. Buka <a href="https://t.me/YamaHotelBot" target="_blank" rel="noreferrer" className="text-blue-600 underline">@YamaHotelBot</a> dan hantar mesej atau fail .xlsx anda!
+              </p>
+            ) : (
+              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                {telegramLogs.map((log, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200/60 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-800">{log.sender}:</span>
+                      {log.documentName ? (
+                        <span className="flex items-center gap-1 font-mono text-[11px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
+                          <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                          {log.documentName}
+                        </span>
+                      ) : (
+                        <span className="text-slate-600 italic">"{log.text || 'Mesej'}"</span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono shrink-0">{log.date}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Control Card: Dates & Extraction Action */}
       <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-xs">

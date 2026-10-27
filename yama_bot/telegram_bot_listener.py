@@ -54,6 +54,14 @@ def get_telegram_updates(offset=None, timeout=25):
         logger.warning(f"Connection error checking Telegram updates: {e}")
     return []
 
+def send_telegram_chat_action(chat_id, action="upload_document"):
+    """Displays typing or uploading action in Telegram chat header."""
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendChatAction"
+    try:
+        requests.post(url, json={"chat_id": chat_id, "action": action}, timeout=10)
+    except Exception as e:
+        logger.warning(f"Failed to send chat action: {e}")
+
 def send_telegram_message(chat_id, text, reply_to_message_id=None):
     """Sends a text message with Markdown formatting to a Telegram chat."""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -164,6 +172,7 @@ def handle_document_upload(chat_id: int, message: dict):
 
     # Run Flow 2 extraction
     try:
+        send_telegram_chat_action(chat_id, "upload_document")
         output_file = run_flow2_extraction(
             input_workbook_path=saved_input_path,
             arrival_date=arrival_date,
