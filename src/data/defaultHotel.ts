@@ -33,11 +33,35 @@ export const DEFAULT_COMPETITOR_HOTELS: CompetitorHotel[] = [
     city: "Klang, Selangor",
     review_score: 7.9,
     url: "https://www.booking.com/hotel/my/merrida.html"
+  },
+  {
+    competitor_hotel_id: "591024",
+    competitor_hotel_name: "Wyndham Acmar Klang",
+    address: "1 Persiaran Bukit Raja 1/KU1",
+    city: "Klang, Selangor",
+    review_score: 8.7,
+    url: "https://www.booking.com/hotel/my/wyndham-acmar.html"
+  },
+  {
+    competitor_hotel_id: "254821",
+    competitor_hotel_name: "Klang Histana Hotel",
+    address: "Jalan Batu Tiga Lama",
+    city: "Klang, Selangor",
+    review_score: 7.4,
+    url: "https://www.booking.com/hotel/my/klang-histana.html"
+  },
+  {
+    competitor_hotel_id: "329402",
+    competitor_hotel_name: "GM City Hotel Klang",
+    address: "Jalan Kasuarina 1, Bandar Botanic",
+    city: "Klang, Selangor",
+    review_score: 7.8,
+    url: "https://www.booking.com/hotel/my/gm-city.html"
   }
 ];
 
 export const DEFAULT_MAPPED_ROOMS: CompetitorRoomMapping[] = [
-  // Premiere Hotel Klang mappings
+  // 1. Premiere Hotel Klang
   {
     competitor_hotel_id: "104258",
     competitor_hotel_name: "Premiere Hotel Klang",
@@ -71,7 +95,7 @@ export const DEFAULT_MAPPED_ROOMS: CompetitorRoomMapping[] = [
     our_room_type: "Family Suite"
   },
 
-  // Crystal Crown mappings
+  // 2. Crystal Crown Hotel Harbour View
   {
     competitor_hotel_id: "219803",
     competitor_hotel_name: "Crystal Crown Hotel Harbour View",
@@ -97,7 +121,7 @@ export const DEFAULT_MAPPED_ROOMS: CompetitorRoomMapping[] = [
     our_room_type: "Deluxe King"
   },
 
-  // Merrida Hotel Klang mappings
+  // 3. Merrida Hotel Klang
   {
     competitor_hotel_id: "418290",
     competitor_hotel_name: "Merrida Hotel Klang",
@@ -121,5 +145,67 @@ export const DEFAULT_MAPPED_ROOMS: CompetitorRoomMapping[] = [
     competitor_room_name: "Junior Suite",
     gross_amount: 185.00,
     our_room_type: "Family Suite"
+  },
+
+  // 4. Wyndham Acmar Klang
+  {
+    competitor_hotel_id: "591024",
+    competitor_hotel_name: "Wyndham Acmar Klang",
+    competitor_room_id: "59102401",
+    competitor_room_name: "Superior Queen Room",
+    gross_amount: 198.00,
+    our_room_type: "Standard Queen"
+  },
+  {
+    competitor_hotel_id: "591024",
+    competitor_hotel_name: "Wyndham Acmar Klang",
+    competitor_room_id: "59102402",
+    competitor_room_name: "Deluxe King Room",
+    gross_amount: 220.00,
+    our_room_type: "Deluxe King"
+  },
+  {
+    competitor_hotel_id: "591024",
+    competitor_hotel_name: "Wyndham Acmar Klang",
+    competitor_room_id: "59102403",
+    competitor_room_name: "Grand Executive Suite",
+    gross_amount: 320.00,
+    our_room_type: "Family Suite"
+  },
+
+  // 5. Klang Histana Hotel
+  {
+    competitor_hotel_id: "254821",
+    competitor_hotel_name: "Klang Histana Hotel",
+    competitor_room_id: "25482101",
+    competitor_room_name: "Standard Double Room",
+    gross_amount: 88.00,
+    our_room_type: "Standard Queen"
+  },
+  {
+    competitor_hotel_id: "254821",
+    competitor_hotel_name: "Klang Histana Hotel",
+    competitor_room_id: "25482102",
+    competitor_room_name: "Twin Sharing Room",
+    gross_amount: 95.00,
+    our_room_type: "Superior Twin"
+  },
+
+  // 6. GM City Hotel Klang
+  {
+    competitor_hotel_id: "329402",
+    competitor_hotel_name: "GM City Hotel Klang",
+    competitor_room_id: "32940201",
+    competitor_room_name: "Standard Queen Room",
+    gross_amount: 82.00,
+    our_room_type: "Standard Queen"
+  },
+  {
+    competitor_hotel_id: "329402",
+    competitor_hotel_name: "GM City Hotel Klang",
+    competitor_room_id: "32940202",
+    competitor_room_name: "Superior Twin Room",
+    gross_amount: 92.00,
+    our_room_type: "Superior Twin"
   }
 ];

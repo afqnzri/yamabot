@@ -99,16 +99,23 @@ export class ExcelService {
     XLSX.utils.book_append_sheet(wb, wsRoom, 'competitor_room');
 
     // 2. competitor_price (With calculated lowest, average, and comparison)
-    const priceRows = priceReport.map(p => ({
-      our_room_type: p.our_room_type,
-      our_min_rate: p.our_min_rate,
-      our_max_rate: p.our_max_rate,
-      lowest_competitor_price: p.lowest_competitor_price,
-      average_competitor_price: p.average_competitor_price,
-      valid_competitor_quotes: p.valid_quotes,
-      market_status: p.status.toUpperCase(),
-      recommendation: p.recommendation
-    }));
+    const priceRows = priceReport.map(p => {
+      const breakdownText = (p.competitor_breakdown || []).map(b => 
+        `${b.hotel_name} [${b.room_name}]: ${typeof b.price === 'number' ? `RM ${b.price.toFixed(2)}` : 'N/A'}`
+      ).join('; ');
+
+      return {
+        our_room_type: p.our_room_type,
+        our_min_rate: p.our_min_rate,
+        our_max_rate: p.our_max_rate,
+        lowest_competitor_price: p.lowest_competitor_price,
+        average_competitor_price: p.average_competitor_price,
+        valid_competitor_quotes: p.valid_quotes,
+        matching_competitor_prices: breakdownText || 'No quotes',
+        market_status: p.status.toUpperCase(),
+        recommendation: p.recommendation
+      };
+    });
     const wsPrice = XLSX.utils.json_to_sheet(priceRows);
     XLSX.utils.book_append_sheet(wb, wsPrice, 'competitor_price');
 
@@ -279,16 +286,23 @@ export class ExcelService {
     const wsRoom = XLSX.utils.json_to_sheet(roomRows);
     XLSX.utils.book_append_sheet(wb, wsRoom, 'competitor_room');
 
-    const priceRows = priceReport.map(p => ({
-      our_room_type: p.our_room_type,
-      our_min_rate: p.our_min_rate,
-      our_max_rate: p.our_max_rate,
-      lowest_competitor_price: p.lowest_competitor_price,
-      average_competitor_price: p.average_competitor_price,
-      valid_competitor_quotes: p.valid_quotes,
-      market_status: p.status.toUpperCase(),
-      recommendation: p.recommendation
-    }));
+    const priceRows = priceReport.map(p => {
+      const breakdownText = (p.competitor_breakdown || []).map(b => 
+        `${b.hotel_name} [${b.room_name}]: ${typeof b.price === 'number' ? `RM ${b.price.toFixed(2)}` : 'N/A'}`
+      ).join('; ');
+
+      return {
+        our_room_type: p.our_room_type,
+        our_min_rate: p.our_min_rate,
+        our_max_rate: p.our_max_rate,
+        lowest_competitor_price: p.lowest_competitor_price,
+        average_competitor_price: p.average_competitor_price,
+        valid_competitor_quotes: p.valid_quotes,
+        matching_competitor_prices: breakdownText || 'No quotes',
+        market_status: p.status.toUpperCase(),
+        recommendation: p.recommendation
+      };
+    });
     const wsPrice = XLSX.utils.json_to_sheet(priceRows);
     XLSX.utils.book_append_sheet(wb, wsPrice, 'competitor_price');
 

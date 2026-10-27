@@ -11,11 +11,11 @@ export class RapidApiService {
   ): Promise<CompetitorHotel[]> {
     if (!apiKey) {
       // Return realistic simulation results based on Malaysian hospitality market
-      await new Promise(r => setTimeout(r, 600)); // natural simulation delay
+      await new Promise(r => setTimeout(r, 400)); // natural simulation delay
       const mockHotels: CompetitorHotel[] = [
         {
           competitor_hotel_id: "104258",
-          competitor_hotel_name: query.toLowerCase().includes("premiere") ? "Premiere Hotel Klang" : `${query} (Premier)`,
+          competitor_hotel_name: "Premiere Hotel Klang",
           address: "Bandar Bukit Tinggi 1/KS6, Jalan Langat",
           city: "Klang, Selangor",
           review_score: 8.2,
@@ -23,7 +23,7 @@ export class RapidApiService {
         },
         {
           competitor_hotel_id: "219803",
-          competitor_hotel_name: query.toLowerCase().includes("crystal") ? "Crystal Crown Hotel Harbour View" : `${query} (Central)`,
+          competitor_hotel_name: "Crystal Crown Hotel Harbour View",
           address: "217 Persiaran Raja Muda Musa",
           city: "Port Klang, Selangor",
           review_score: 7.6,
@@ -44,9 +44,44 @@ export class RapidApiService {
           city: "Klang, Selangor",
           review_score: 8.7,
           url: "https://www.booking.com/hotel/my/wyndham-acmar.html"
+        },
+        {
+          competitor_hotel_id: "254821",
+          competitor_hotel_name: "Klang Histana Hotel",
+          address: "Jalan Batu Tiga Lama",
+          city: "Klang, Selangor",
+          review_score: 7.4,
+          url: "https://www.booking.com/hotel/my/klang-histana.html"
+        },
+        {
+          competitor_hotel_id: "329402",
+          competitor_hotel_name: "GM City Hotel Klang",
+          address: "Jalan Kasuarina 1, Bandar Botanic",
+          city: "Klang, Selangor",
+          review_score: 7.8,
+          url: "https://www.booking.com/hotel/my/gm-city.html"
         }
       ];
-      return mockHotels.filter(h => h.competitor_hotel_name.toLowerCase().includes(query.toLowerCase()) || query.length < 3);
+
+      if (query.trim()) {
+        const q = query.toLowerCase().trim();
+        const matched = mockHotels.filter(h => 
+          h.competitor_hotel_name.toLowerCase().includes(q) || 
+          h.competitor_hotel_id.includes(q) || 
+          h.city?.toLowerCase().includes(q)
+        );
+        return matched.length > 0 ? matched : [
+          {
+            competitor_hotel_id: String(Math.floor(Math.random() * 800000) + 100000),
+            competitor_hotel_name: `${query} (Booking.com Competitor)`,
+            address: "Klang / Shah Alam",
+            city: "Selangor, Malaysia",
+            review_score: 8.0,
+            url: `https://www.booking.com/hotel/my/competitor.html`
+          }
+        ];
+      }
+      return mockHotels;
     }
 
     try {
@@ -87,11 +122,24 @@ export class RapidApiService {
     apiHost: string = 'booking-com15.p.rapidapi.com'
   ): Promise<CompetitorHotel> {
     if (!apiKey) {
+      await new Promise(r => setTimeout(r, 200));
+      const knownHotels: Record<string, Partial<CompetitorHotel>> = {
+        "104258": { competitor_hotel_name: "Premiere Hotel Klang", address: "Bandar Bukit Tinggi 1/KS6", city: "Klang, Selangor", review_score: 8.2 },
+        "219803": { competitor_hotel_name: "Crystal Crown Hotel Harbour View", address: "217 Persiaran Raja Muda Musa", city: "Port Klang, Selangor", review_score: 7.6 },
+        "418290": { competitor_hotel_name: "Merrida Hotel Klang", address: "18R Lebuh Enggang, Off Jalan Meru", city: "Klang, Selangor", review_score: 7.9 },
+        "591024": { competitor_hotel_name: "Wyndham Acmar Klang", address: "1 Persiaran Bukit Raja 1/KU1", city: "Klang, Selangor", review_score: 8.7 },
+        "254821": { competitor_hotel_name: "Klang Histana Hotel", address: "Jalan Batu Tiga Lama", city: "Klang, Selangor", review_score: 7.4 },
+        "329402": { competitor_hotel_name: "GM City Hotel Klang", address: "Jalan Kasuarina 1, Bandar Botanic", city: "Klang, Selangor", review_score: 7.8 }
+      };
+
+      const matched = knownHotels[hotelId] || {};
       return {
         competitor_hotel_id: hotelId,
-        competitor_hotel_name: `Hotel ${hotelId}`,
-        city: 'Malaysia',
-        review_score: 8.0
+        competitor_hotel_name: matched.competitor_hotel_name || `Competitor Hotel ${hotelId}`,
+        address: matched.address || 'Klang / Shah Alam, Selangor',
+        city: matched.city || 'Klang, Selangor',
+        review_score: matched.review_score || 8.0,
+        url: `https://www.booking.com/hotel/my/${hotelId}.html`
       };
     }
 
@@ -107,11 +155,11 @@ export class RapidApiService {
     const h = data.data || data || {};
     return {
       competitor_hotel_id: String(hotelId),
-      competitor_hotel_name: h.hotel_name || h.name || `Hotel ${hotelId}`,
-      address: h.address || '',
-      city: h.city || '',
-      review_score: h.review_score || h.score || 8.0,
-      url: h.url || ''
+      competitor_hotel_name: h.hotel_name || h.name || h.title || h.property?.name || `Hotel ${hotelId}`,
+      address: h.address || h.hotel_address || h.location?.address || '',
+      city: h.city || h.city_name || h.city_trans || h.district || '',
+      review_score: h.review_score || h.score || h.average_score || 8.0,
+      url: h.url || h.booking_url || `https://www.booking.com/hotel/my/${hotelId}.html`
     };
   }
 
