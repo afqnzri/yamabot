@@ -54,6 +54,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Python tab state
   const [activeScriptTab, setActiveScriptTab] = useState<'listener' | 'flow2' | 'flow1' | 'excel' | 'api' | 'telegram' | 'cron'>('listener');
   const [copied, setCopied] = useState(false);
+  const [detectingChatId, setDetectingChatId] = useState(false);
 
   if (!isOpen) return null;
 
@@ -98,8 +99,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     setTestingTelegram(false);
   };
-
-  const [detectingChatId, setDetectingChatId] = useState(false);
 
   const handleAutoDetectChatId = async () => {
     if (!telegramToken.trim()) {
@@ -261,13 +260,16 @@ jobs:
   };
 
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(scripts[activeScriptTab].code);
+    const s = scripts[activeScriptTab] || scripts.listener;
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(s.code).catch(() => {});
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownloadScript = () => {
-    const s = scripts[activeScriptTab];
+    const s = scripts[activeScriptTab] || scripts.listener;
     const blob = new Blob([s.code], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -559,7 +561,7 @@ jobs:
               </div>
 
               <div className="flex items-center justify-between text-xs text-slate-600">
-                <span className="font-medium">{scripts[activeScriptTab].description}</span>
+                <span className="font-medium">{(scripts[activeScriptTab] || scripts.listener).description}</span>
                 <div className="flex gap-2">
                   <button
                     onClick={handleCopyCode}
@@ -579,7 +581,7 @@ jobs:
               </div>
 
               <div className="bg-slate-950 text-slate-200 p-4 rounded-xl font-mono text-[11px] max-h-60 overflow-y-auto leading-relaxed">
-                <pre>{scripts[activeScriptTab].code}</pre>
+                <pre>{(scripts[activeScriptTab] || scripts.listener).code}</pre>
               </div>
             </div>
           )}
