@@ -40,25 +40,19 @@ export default function App() {
     };
   }, []);
 
-  // Core Workbook state (Pre-loaded with MSP D'Spark Hotel Bayu example)
-  const [hotelName, setHotelName] = useState<string>(() => {
-    return localStorage.getItem('yama_hotel_name') || DEFAULT_HOTEL_NAME;
-  });
+  // Core Workbook state: Auto-resets to empty on every page visit / refresh (No localStorage caching)
+  const [hotelName, setHotelName] = useState<string>('');
+  const [hotelRooms, setHotelRooms] = useState<HotelRoomType[]>([]);
+  const [competitorHotels, setCompetitorHotels] = useState<CompetitorHotel[]>([]);
+  const [mappedRooms, setMappedRooms] = useState<CompetitorRoomMapping[]>([]);
 
-  const [hotelRooms, setHotelRooms] = useState<HotelRoomType[]>(() => {
-    const saved = localStorage.getItem('yama_hotel_rooms');
-    return saved ? JSON.parse(saved) : DEFAULT_HOTEL_ROOMS;
-  });
-
-  const [competitorHotels, setCompetitorHotels] = useState<CompetitorHotel[]>(() => {
-    const saved = localStorage.getItem('yama_competitor_hotels');
-    return saved ? JSON.parse(saved) : DEFAULT_COMPETITOR_HOTELS;
-  });
-
-  const [mappedRooms, setMappedRooms] = useState<CompetitorRoomMapping[]>(() => {
-    const saved = localStorage.getItem('yama_mapped_rooms');
-    return saved ? JSON.parse(saved) : DEFAULT_MAPPED_ROOMS;
-  });
+  // Clear any previously cached Flow 1 data from localStorage on load
+  useEffect(() => {
+    localStorage.removeItem('yama_hotel_name');
+    localStorage.removeItem('yama_hotel_rooms');
+    localStorage.removeItem('yama_competitor_hotels');
+    localStorage.removeItem('yama_mapped_rooms');
+  }, []);
 
   // Settings
   const [rapidApiKey, setRapidApiKey] = useState<string>(() => {
@@ -83,11 +77,6 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
-  // Sync to local storage for persistence across reloads
-  useEffect(() => {
-    localStorage.setItem('yama_hotel_name', hotelName);
-  }, [hotelName]);
-
   const handleUploadWorkbook = async (file: File, autoRun: boolean = false) => {
     try {
       const data = await import('./services/excelService').then(m => m.ExcelService.importInputWorkbook(file));
@@ -102,18 +91,6 @@ export default function App() {
       throw e;
     }
   };
-
-  useEffect(() => {
-    localStorage.setItem('yama_hotel_rooms', JSON.stringify(hotelRooms));
-  }, [hotelRooms]);
-
-  useEffect(() => {
-    localStorage.setItem('yama_competitor_hotels', JSON.stringify(competitorHotels));
-  }, [competitorHotels]);
-
-  useEffect(() => {
-    localStorage.setItem('yama_mapped_rooms', JSON.stringify(mappedRooms));
-  }, [mappedRooms]);
 
   useEffect(() => {
     localStorage.setItem('yama_rapidapi_key', rapidApiKey);

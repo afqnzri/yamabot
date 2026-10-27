@@ -335,7 +335,12 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
               <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                 Senarai Bilik ({hotelRooms.length})
               </div>
-              {hotelRooms.map((room, idx) => (
+              {hotelRooms.length === 0 ? (
+                <div className="p-4 rounded-lg border border-dashed border-slate-200 text-center text-xs text-slate-400">
+                  Belum ada bilik didaftarkan. Tekan <strong>+ Tambah Bilik</strong> di atas atau muat naik fail <code>.xlsx</code>.
+                </div>
+              ) : (
+                hotelRooms.map((room, idx) => (
                 <div
                   key={idx}
                   className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-colors"
@@ -361,7 +366,7 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
                     </button>
                   </div>
                 </div>
-              ))}
+              )))}
             </div>
           </div>
         </div>
@@ -434,7 +439,12 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
             )}
 
             <div className="mt-4 space-y-2">
-              {competitorHotels.map((comp, cIdx) => {
+              {competitorHotels.length === 0 ? (
+                <div className="p-4 rounded-lg border border-dashed border-slate-200 text-center text-xs text-slate-400">
+                  Belum ada hotel pesaing. Gunakan kotak carian di atas untuk mencari dan menambah hotel pesaing Booking.com.
+                </div>
+              ) : (
+                competitorHotels.map((comp, cIdx) => {
                 const roomCount = mappedRooms.filter(m => m.competitor_hotel_id === comp.competitor_hotel_id).length;
                 return (
                   <div
@@ -470,7 +480,7 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
                     </div>
                   </div>
                 );
-              })}
+              }))}
             </div>
           </div>
         </div>
