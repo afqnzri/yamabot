@@ -6,7 +6,9 @@ import {
   Download, 
   Upload, 
   RefreshCw,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ArrowRight,
+  CheckCircle2
 } from 'lucide-react';
 import { HotelRoomType, CompetitorHotel, CompetitorRoomMapping } from '../types/yama';
 import { ExcelService } from '../services/excelService';
@@ -24,6 +26,7 @@ interface Flow1MappingProps {
   rapidApiKey: string;
   rapidApiHost: string;
   onResetDefaults: () => void;
+  onProceedToFlow2?: () => void;
 }
 
 export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
@@ -37,7 +40,8 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
   setMappedRooms,
   rapidApiKey,
   rapidApiHost,
-  onResetDefaults
+  onResetDefaults,
+  onProceedToFlow2
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -615,6 +619,42 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
             Muat Semula Contoh D'Spark Bayu
           </button>
         </div>
+
+        {totalMappedCount > 0 && (
+          <div className="mt-4 p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-bold text-xs text-white">
+                  Langkah Seterusnya: Bilik Telah Siap Dipadankan ({totalMappedCount} bilik aktif)
+                </h4>
+                <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
+                  Anda kini boleh eksport fail input Excel (.xlsx) sebagai fail rujukan hotel, atau terus beralih ke <strong>Flow 2</strong> untuk mengekstrak harga pasaran Booking.com terkini.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleExportInputWorkbook}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors border border-slate-700"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Eksport .xlsx</span>
+              </button>
+
+              {onProceedToFlow2 && (
+                <button
+                  onClick={onProceedToFlow2}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+                >
+                  <span>Ke Flow 2: Pantau Harga</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

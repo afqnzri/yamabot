@@ -138,6 +138,7 @@ export default function App() {
             rapidApiKey={rapidApiKey}
             rapidApiHost={rapidApiHost}
             onResetDefaults={handleResetDefaults}
+            onProceedToFlow2={() => setActiveTab('flow2')}
           />
         ) : (
           <Flow2Extraction

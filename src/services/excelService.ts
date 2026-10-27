@@ -191,4 +191,104 @@ export class ExcelService {
       mappedRooms
     };
   }
+
+  /**
+   * Parses an input workbook directly from a Buffer or Uint8Array (for Node/Daemon)
+   */
+  static parseWorkbookFromBuffer(buffer: Buffer | Uint8Array): {
+    hotelName: string;
+    hotelRooms: HotelRoomType[];
+    competitorHotels: CompetitorHotel[];
+    mappedRooms: CompetitorRoomMapping[];
+  } {
+    const wb = XLSX.read(buffer, { type: 'buffer' });
+
+    let hotelName = 'Hotel';
+    let hotelRooms: HotelRoomType[] = [];
+    let competitorHotels: CompetitorHotel[] = [];
+    let mappedRooms: CompetitorRoomMapping[] = [];
+
+    if (wb.SheetNames.includes('hotel_data')) {
+      const data = XLSX.utils.sheet_to_json<any>(wb.Sheets['hotel_data']);
+      if (data.length > 0 && data[0].hotel_name) {
+        hotelName = String(data[0].hotel_name);
+      }
+      hotelRooms = data.map(d => ({
+        room_type: String(d.room_type || ''),
+        room_name: String(d.room_name || d.room_type || ''),
+        min_rate: Number(d.min_rate) || 0,
+        max_rate: Number(d.max_rate) || 0
+      }));
+    }
+
+    if (wb.SheetNames.includes('competitor_hotel')) {
+      const data = XLSX.utils.sheet_to_json<any>(wb.Sheets['competitor_hotel']);
+      competitorHotels = data.map(d => ({
+        competitor_hotel_id: String(d.competitor_hotel_id || ''),
+        competitor_hotel_name: String(d.competitor_hotel_name || ''),
+        address: d.address ? String(d.address) : undefined,
+        city: d.city ? String(d.city) : undefined,
+        review_score: d.review_score ?? undefined,
+        url: d.url ? String(d.url) : undefined
+      }));
+    }
+
+    if (wb.SheetNames.includes('competitor_room')) {
+      const data = XLSX.utils.sheet_to_json<any>(wb.Sheets['competitor_room']);
+      mappedRooms = data.map(d => ({
+        competitor_hotel_id: String(d.competitor_hotel_id || ''),
+        competitor_hotel_name: String(d.competitor_hotel_name || ''),
+        competitor_room_id: String(d.competitor_room_id || ''),
+        competitor_room_name: String(d.competitor_room_name || ''),
+        gross_amount: d.gross_amount !== undefined && d.gross_amount !== '' && d.gross_amount !== 'N/A'
+          ? Number(d.gross_amount)
+          : null,
+        our_room_type: String(d.our_room_type || 'UNMAPPED')
+      }));
+    }
+
+    return {
+      hotelName,
+      hotelRooms,
+      competitorHotels,
+      mappedRooms
+    };
+  }
+
+  /**
+   * Generates dated output workbook returning Buffer (for Node/Daemon)
+   */
+  static generateOutputWorkbookBuffer(
+    hotelName: string,
+    priceReport: PriceReportRow[],
+    updatedRooms: CompetitorRoomMapping[]
+  ): Buffer {
+    const wb = XLSX.utils.book_new();
+
+    const roomRows = updatedRooms.map(r => ({
+      competitor_hotel_id: r.competitor_hotel_id,
+      competitor_hotel_name: r.competitor_hotel_name,
+      competitor_room_id: r.competitor_room_id,
+      competitor_room_name: r.competitor_room_name,
+      gross_amount: r.gross_amount ?? 'N/A',
+      our_room_type: r.our_room_type
+    }));
+    const wsRoom = XLSX.utils.json_to_sheet(roomRows);
+    XLSX.utils.book_append_sheet(wb, wsRoom, 'competitor_room');
+
+    const priceRows = priceReport.map(p => ({
+      our_room_type: p.our_room_type,
+      our_min_rate: p.our_min_rate,
+      our_max_rate: p.our_max_rate,
+      lowest_competitor_price: p.lowest_competitor_price,
+      average_competitor_price: p.average_competitor_price,
+      valid_competitor_quotes: p.valid_quotes,
+      market_status: p.status.toUpperCase(),
+      recommendation: p.recommendation
+    }));
+    const wsPrice = XLSX.utils.json_to_sheet(priceRows);
+    XLSX.utils.book_append_sheet(wb, wsPrice, 'competitor_price');
+
+    return XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+  }
 }
