@@ -1,0 +1,6 @@
+{
+  "name": "YAMA Bot - Hotel Competitor Price Monitor",
+  "description": "Hotel competitor room mapping and automated recurring price monitoring using Booking.com API with Excel export and Telegram notifications.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

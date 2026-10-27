@@ -1,0 +1,42 @@
+name: YAMA Bot - Daily Competitor Price Extraction
+
+on:
+  schedule:
+    # Runs daily at 07:00 UTC (15:00 Malaysia/Singapore time)
+    - cron: '0 7 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI anytime
+
+jobs:
+  extract-and-alert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r yama_bot/requirements.txt
+
+      - name: Run Flow 2 Price Extraction & Telegram Dispatch
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          RAPIDAPI_HOST: ${{ secrets.RAPIDAPI_HOST || 'booking-com15.p.rapidapi.com' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -m yama_bot.flow2_extract --input "MSP D'Spark Hotel Bayu.xlsx" --telegram
+
+      - name: Commit & Push Output Report (Optional)
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add yama_bot/workbooks/output/
+          git commit -m "Auto: Update daily competitor price report [skip ci]" || echo "No changes to commit"
+          git push || echo "Push skipped"
