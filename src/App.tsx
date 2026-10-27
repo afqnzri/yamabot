@@ -70,7 +70,7 @@ export default function App() {
       setUploadedFileName(file.name);
       return data;
     } catch (e: any) {
-      alert(`Error reading uploaded Excel file: ${e.message}`);
+      console.error(`Error reading uploaded Excel file:`, e);
       throw e;
     }
   };
@@ -104,12 +104,10 @@ export default function App() {
   }, [telegramChatId]);
 
   const handleResetDefaults = () => {
-    if (confirm("Reset to default MSP D'Spark Hotel Bayu dataset? Any unsaved edits will be restored.")) {
-      setHotelName(DEFAULT_HOTEL_NAME);
-      setHotelRooms(DEFAULT_HOTEL_ROOMS);
-      setCompetitorHotels(DEFAULT_COMPETITOR_HOTELS);
-      setMappedRooms(DEFAULT_MAPPED_ROOMS);
-    }
+    setHotelName(DEFAULT_HOTEL_NAME);
+    setHotelRooms(DEFAULT_HOTEL_ROOMS);
+    setCompetitorHotels(DEFAULT_COMPETITOR_HOTELS);
+    setMappedRooms(DEFAULT_MAPPED_ROOMS);
   };
 
   return (

@@ -66,7 +66,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
 
   const handleRunExtraction = async () => {
     if (activeMappedRooms.length === 0) {
-      alert("Tiada bilik pesaing yang dipadankan. Sila lengkapkan mapping dalam Flow 1 terlebih dahulu.");
+      setUploadMessage("Tiada bilik pesaing yang dipadankan. Sila lengkapkan mapping dalam Flow 1 terlebih dahulu.");
       return;
     }
 
