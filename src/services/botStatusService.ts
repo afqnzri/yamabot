@@ -20,7 +20,10 @@ export class BotStatusService {
     botUsername: string;
   }> {
     try {
-      const res = await fetch(`/bot_status.json?t=${Date.now()}`, { cache: 'no-store' });
+      let res = await fetch(`/api/bot-status?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) {
+        res = await fetch(`/bot_status.json?t=${Date.now()}`, { cache: 'no-store' });
+      }
       if (!res.ok) throw new Error('Not reachable');
       const data: BotDaemonStatus = await res.json();
       
