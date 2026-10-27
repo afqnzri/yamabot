@@ -399,11 +399,11 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
                   <span>Hasil Carian ({searchResults.length})</span>
                   <button onClick={() => setSearchResults([])} className="text-slate-500 hover:text-slate-900">Tutup</button>
                 </div>
-                {searchResults.map((res) => {
+                {searchResults.map((res, sIdx) => {
                   const isTracked = competitorHotels.some(h => h.competitor_hotel_id === res.competitor_hotel_id);
                   return (
                     <div
-                      key={res.competitor_hotel_id}
+                      key={`search_res_${res.competitor_hotel_id}_${sIdx}`}
                       className="p-2 bg-white rounded-md border border-slate-200 flex items-center justify-between text-xs"
                     >
                       <div>
@@ -430,11 +430,11 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
             )}
 
             <div className="mt-4 space-y-2">
-              {competitorHotels.map((comp) => {
+              {competitorHotels.map((comp, cIdx) => {
                 const roomCount = mappedRooms.filter(m => m.competitor_hotel_id === comp.competitor_hotel_id).length;
                 return (
                   <div
-                    key={comp.competitor_hotel_id}
+                    key={`comp_hotel_${comp.competitor_hotel_id}_${cIdx}`}
                     className="p-3 rounded-lg border border-slate-200 bg-white flex items-center justify-between"
                   >
                     <div className="min-w-0 pr-3">
@@ -495,8 +495,8 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
               className="text-xs border border-slate-300 rounded-lg px-2.5 py-1 bg-white focus:outline-none"
             >
               <option value="ALL">Semua Hotel</option>
-              {competitorHotels.map(h => (
-                <option key={h.competitor_hotel_id} value={h.competitor_hotel_id}>
+              {competitorHotels.map((h, hIdx) => (
+                <option key={`filter_hotel_${h.competitor_hotel_id}_${hIdx}`} value={h.competitor_hotel_id}>
                   {h.competitor_hotel_name}
                 </option>
               ))}
@@ -510,8 +510,8 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
             >
               <option value="ALL">Semua Bilik</option>
               <option value="UNMAPPED">Perlu Dipadankan</option>
-              {hotelRooms.map(r => (
-                <option key={r.room_type} value={r.room_type}>
+              {hotelRooms.map((r, rIdx) => (
+                <option key={`filter_room_${r.room_type}_${rIdx}`} value={r.room_type}>
                   {r.room_type}
                 </option>
               ))}
@@ -539,7 +539,7 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredMappedRooms.map((room) => {
+                filteredMappedRooms.map((room, idx) => {
                   const actualIndex = mappedRooms.findIndex(
                     m => m.competitor_hotel_id === room.competitor_hotel_id && m.competitor_room_id === room.competitor_room_id
                   );
@@ -547,7 +547,7 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
 
                   return (
                     <tr
-                      key={`${room.competitor_hotel_id}_${room.competitor_room_id}`}
+                      key={`mapped_room_${room.competitor_hotel_id}_${room.competitor_room_id}_${idx}`}
                       className="hover:bg-slate-50/50 transition-colors"
                     >
                       <td className="py-2.5 px-3 font-medium text-slate-900">
@@ -575,8 +575,8 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
                           <option value="UNMAPPED">-- Belum Dipadankan --</option>
                           <option value="IGNORE">Abaikan (Jangan Pantau)</option>
                           <optgroup label="Jenis Bilik Kita">
-                            {hotelRooms.map(h => (
-                              <option key={h.room_type} value={h.room_type}>
+                            {hotelRooms.map((h, hIdx) => (
+                              <option key={`opt_hotel_room_${h.room_type}_${hIdx}`} value={h.room_type}>
                                 {h.room_type} (RM {h.min_rate}-{h.max_rate})
                               </option>
                             ))}

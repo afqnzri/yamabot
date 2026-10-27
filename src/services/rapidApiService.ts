@@ -75,6 +75,47 @@ export class RapidApiService {
   }
 
   /**
+   * Endpoint: GET Get Hotel Details
+   * URL: https://booking-com15.p.rapidapi.com/api/v1/hotels/getHotelDetails
+   * Parameters: hotel_id, arrival_date, departure_date
+   */
+  static async getHotelDetails(
+    hotelId: string,
+    arrivalDate: string,
+    departureDate: string,
+    apiKey?: string,
+    apiHost: string = 'booking-com15.p.rapidapi.com'
+  ): Promise<CompetitorHotel> {
+    if (!apiKey) {
+      return {
+        competitor_hotel_id: hotelId,
+        competitor_hotel_name: `Hotel ${hotelId}`,
+        city: 'Malaysia',
+        review_score: 8.0
+      };
+    }
+
+    const url = `https://${apiHost}/api/v1/hotels/getHotelDetails?hotel_id=${hotelId}&arrival_date=${arrivalDate}&departure_date=${departureDate}&currency=MYR`;
+    const res = await fetch(url, {
+      headers: {
+        'x-rapidapi-key': apiKey,
+        'x-rapidapi-host': apiHost
+      }
+    });
+    if (!res.ok) throw new Error(`RapidAPI getHotelDetails error: ${res.statusText}`);
+    const data = await res.json();
+    const h = data.data || data || {};
+    return {
+      competitor_hotel_id: String(hotelId),
+      competitor_hotel_name: h.hotel_name || h.name || `Hotel ${hotelId}`,
+      address: h.address || '',
+      city: h.city || '',
+      review_score: h.review_score || h.score || 8.0,
+      url: h.url || ''
+    };
+  }
+
+  /**
    * Fetch rooms for a given competitor hotel
    */
   static async getRoomList(

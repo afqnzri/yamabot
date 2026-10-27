@@ -379,7 +379,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
             ) : (
               <div className="space-y-1.5 max-h-40 overflow-y-auto">
                 {telegramLogs.map((log, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200/60 text-xs">
+                  <div key={`telegram_log_${log.updateId || idx}_${idx}`} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200/60 text-xs">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-slate-800">{log.sender}:</span>
                       {log.documentName ? (
@@ -590,7 +590,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {extractionResult.priceReport.map((p, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        <tr key={`price_report_row_${p.our_room_type}_${idx}`} className="hover:bg-slate-50/50 transition-colors">
                           <td className="py-2.5 px-3 font-medium text-slate-900">
                             {p.our_room_type}
                           </td>
@@ -625,7 +625,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {extractionResult.priceReport.map((p, idx) => (
-                      <div key={idx} className="p-3 rounded-lg border border-slate-200 bg-slate-50/40 text-xs">
+                      <div key={`breakdown_card_${p.our_room_type}_${idx}`} className="p-3 rounded-lg border border-slate-200 bg-slate-50/40 text-xs">
                         <div className="font-semibold text-slate-900 flex justify-between mb-2">
                           <span>{p.our_room_type}</span>
                           <span className="font-normal text-slate-500">
@@ -634,7 +634,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                         </div>
                         <div className="space-y-1">
                           {p.competitor_breakdown.map((cb, cIdx) => (
-                            <div key={cIdx} className="flex justify-between items-center bg-white p-2 rounded border border-slate-200 text-[11px]">
+                            <div key={`comp_item_${idx}_${cIdx}_${cb.hotel_name}_${cb.room_name}`} className="flex justify-between items-center bg-white p-2 rounded border border-slate-200 text-[11px]">
                               <span className="text-slate-700 truncate pr-2">
                                 <strong>{cb.hotel_name}</strong> ({cb.room_name})
                               </span>
@@ -677,7 +677,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {extractionResult.updatedRooms.map((room, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        <tr key={`updated_room_${room.competitor_hotel_id}_${room.competitor_room_id}_${idx}`} className="hover:bg-slate-50/50 transition-colors">
                           <td className="py-2.5 px-3 font-mono text-slate-500">
                             {room.competitor_hotel_id}
                           </td>
