@@ -6,6 +6,7 @@ export interface HotelRoomType {
 }
 
 export interface CompetitorHotel {
+  competitor_hotel_search?: string;
   competitor_hotel_id: string;
   competitor_hotel_name: string;
   address?: string;

@@ -250,84 +250,39 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
 
   /**
    * BATCH ACTION: Auto-discover & generate rooms for all competitor hotels
-   * This is the core solution for user's question:
-   * "Hotel pesaing yang dipantau (6) not automatic finding and generate to Sheet: competitor_room ?"
+   * Reads competitor_hotel_search from competitor_hotel tab,
+   * queries searchDestination, getHotelDetails (Step 3), and getRoomList (Step 4),
+   * and populates both competitor_hotel and competitor_room!
    */
-  const handleAutoGenerateAllRooms = async () => {
-    if (competitorHotels.length === 0) {
-      showNotify('No competitor hotels found in Sheet: competitor_hotel. Please add hotels first.', 'error');
+  const handleAutoGenerateAllRooms = async (hotelsToProcess?: CompetitorHotel[] | unknown) => {
+    const list = Array.isArray(hotelsToProcess) ? hotelsToProcess : competitorHotels;
+    if (list.length === 0) {
+      showNotify('No competitor hotels found in Sheet: competitor_hotel. Please add hotels or upload a workbook.', 'error');
       return;
     }
 
     setIsBatchFetching(true);
-    let totalGenerated = 0;
-    const updatedHotelsList: CompetitorHotel[] = [];
-    let combinedMappings: CompetitorRoomMapping[] = [];
-
-    // Keep mappings from hotels not in competitorHotels (if any)
-    const trackedIds = new Set(competitorHotels.map(h => h.competitor_hotel_id));
-    combinedMappings = mappedRooms.filter(m => !trackedIds.has(m.competitor_hotel_id));
-
     try {
-      for (let i = 0; i < competitorHotels.length; i++) {
-        const hotel = competitorHotels[i];
-        setBatchProgress({
-          current: i + 1,
-          total: competitorHotels.length,
-          hotelName: hotel.competitor_hotel_name
-        });
-
-        try {
-          // Step 3: GET Get Hotel Details
-          const details = await RapidApiService.getHotelDetails(
-            hotel.competitor_hotel_id,
-            discoveryArrival,
-            discoveryDeparture,
-            rapidApiKey,
-            rapidApiHost
-          );
-
-          const enrichedHotel: CompetitorHotel = {
-            ...hotel,
-            ...details,
-            competitor_hotel_name: details.competitor_hotel_name || hotel.competitor_hotel_name
-          };
-          updatedHotelsList.push(enrichedHotel);
-
-          // Step 4: GET Get Room List
-          const rooms = await RapidApiService.getRoomList(
-            hotel.competitor_hotel_id,
-            discoveryArrival,
-            discoveryDeparture,
-            rapidApiKey,
-            rapidApiHost
-          );
-
-          const mappingsForHotel: CompetitorRoomMapping[] = rooms.map(r => ({
-            competitor_hotel_id: hotel.competitor_hotel_id,
-            competitor_hotel_name: enrichedHotel.competitor_hotel_name,
-            competitor_room_id: r.competitor_room_id,
-            competitor_room_name: r.room_name,
-            gross_amount: r.gross_amount,
-            our_room_type: matchRoomType(r.room_name)
-          }));
-
-          combinedMappings.push(...mappingsForHotel);
-          totalGenerated += mappingsForHotel.length;
-        } catch (err: any) {
-          console.warn(`Error generating rooms for hotel ${hotel.competitor_hotel_id}:`, err);
-          updatedHotelsList.push(hotel);
+      const resolved = await RapidApiService.resolveCompetitorsAndRooms(
+        list,
+        hotelRooms,
+        discoveryArrival,
+        discoveryDeparture,
+        rapidApiKey,
+        rapidApiHost,
+        (current, total, hotelName) => {
+          setBatchProgress({ current, total, hotelName });
         }
-      }
+      );
 
-      setCompetitorHotels(updatedHotelsList);
-      setMappedRooms(combinedMappings);
+      setCompetitorHotels(resolved.updatedHotels);
+      setMappedRooms(resolved.generatedRooms);
       showNotify(
-        `Successfully generated ${totalGenerated} rooms across ${competitorHotels.length} competitor hotels to Sheet: competitor_room!`,
+        `Successfully read competitor_hotel_search! Discovered ${resolved.updatedHotels.length} hotels & generated ${resolved.generatedRooms.length} rooms in Sheet: competitor_room!`,
         'success'
       );
     } catch (err: any) {
-      showNotify(`Batch room generation failed: ${err.message}`, 'error');
+      showNotify(`Batch generation failed: ${err.message}`, 'error');
     } finally {
       setIsBatchFetching(false);
       setBatchProgress(null);
@@ -357,21 +312,58 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
 
     try {
       const data = await ExcelService.importInputWorkbook(file);
-      if (data.hotelRooms.length > 0) setHotelRooms(data.hotelRooms);
-      if (data.competitorHotels.length > 0) setCompetitorHotels(data.competitorHotels);
-      if (data.mappedRooms.length > 0) setMappedRooms(data.mappedRooms);
       if (data.hotelName) setHotelName(data.hotelName);
+      if (data.hotelRooms.length > 0) setHotelRooms(data.hotelRooms);
 
-      const compCount = data.competitorHotels.length;
-      const roomCount = data.mappedRooms.length;
+      const compHotels = data.competitorHotels;
+      const fileMappedRooms = data.mappedRooms;
 
-      if (compCount > 0 && roomCount === 0) {
-        showNotify(
-          `Uploaded "${file.name}" with ${compCount} competitor hotels, but 0 rooms. Click "Auto-Generate All Rooms" below to fetch room lists via Booking.com API!`,
-          'info'
+      if (compHotels.length > 0) {
+        setCompetitorHotels(compHotels);
+
+        // Check if any hotel lacks mapped rooms in the file or lacks competitor_hotel_id
+        const needsDiscovery = fileMappedRooms.length === 0 || compHotels.some(
+          h => !h.competitor_hotel_id || !fileMappedRooms.some(m => m.competitor_hotel_id === h.competitor_hotel_id)
         );
+
+        if (needsDiscovery) {
+          showNotify(
+            `Reading competitor_hotel_search from Tab competitor_hotel... Auto-generating ${compHotels.length} hotels and rooms into competitor_room!`,
+            'info'
+          );
+          setIsBatchFetching(true);
+          try {
+            const resolved = await RapidApiService.resolveCompetitorsAndRooms(
+              compHotels,
+              data.hotelRooms.length > 0 ? data.hotelRooms : hotelRooms,
+              discoveryArrival,
+              discoveryDeparture,
+              rapidApiKey,
+              rapidApiHost,
+              (current, total, hotelName) => {
+                setBatchProgress({ current, total, hotelName });
+              }
+            );
+            setCompetitorHotels(resolved.updatedHotels);
+            setMappedRooms(resolved.generatedRooms);
+            showNotify(
+              `Read competitor_hotel_search successfully! Populated ${resolved.updatedHotels.length} competitor hotels and generated ${resolved.generatedRooms.length} rooms in Sheet: competitor_room.`,
+              'success'
+            );
+          } catch (autoErr: any) {
+            console.warn('Auto-resolution failed:', autoErr);
+            if (fileMappedRooms.length > 0) setMappedRooms(fileMappedRooms);
+          } finally {
+            setIsBatchFetching(false);
+            setBatchProgress(null);
+          }
+        } else {
+          setMappedRooms(fileMappedRooms);
+          showNotify(`Successfully uploaded "${file.name}" (${compHotels.length} hotels, ${fileMappedRooms.length} mappings).`, 'success');
+        }
       } else {
-        showNotify(`Successfully uploaded "${file.name}" (${compCount} hotels, ${roomCount} room mappings).`, 'success');
+        if (fileMappedRooms.length > 0) setMappedRooms(fileMappedRooms);
+        showNotify(`Successfully uploaded "${file.name}".`, 'success');
       }
     } catch (err: any) {
       showNotify(`Failed to read Excel workbook: ${err.message}`, 'error');
@@ -823,8 +815,13 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
                           <span className="font-semibold text-xs text-slate-900">
                             {comp.competitor_hotel_name}
                           </span>
+                          {comp.competitor_hotel_search && (
+                            <span className="text-[10px] font-mono text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200" title="competitor_hotel_search from workbook">
+                              Search: "{comp.competitor_hotel_search}"
+                            </span>
+                          )}
                           <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                            ID: {comp.competitor_hotel_id}
+                            ID: {comp.competitor_hotel_id || 'Pending lookup'}
                           </span>
                           {comp.review_score && (
                             <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">

@@ -11,6 +11,7 @@ export const DEFAULT_HOTEL_ROOMS: HotelRoomType[] = [
 
 export const DEFAULT_COMPETITOR_HOTELS: CompetitorHotel[] = [
   {
+    competitor_hotel_search: "Premiere Hotel Klang",
     competitor_hotel_id: "104258",
     competitor_hotel_name: "Premiere Hotel Klang",
     address: "Bandar Bukit Tinggi 1/KS6, Jalan Langat",
@@ -19,6 +20,7 @@ export const DEFAULT_COMPETITOR_HOTELS: CompetitorHotel[] = [
     url: "https://www.booking.com/hotel/my/premiere.html"
   },
   {
+    competitor_hotel_search: "Crystal Crown Hotel Harbour View",
     competitor_hotel_id: "219803",
     competitor_hotel_name: "Crystal Crown Hotel Harbour View",
     address: "217 Persiaran Raja Muda Musa",
@@ -27,6 +29,7 @@ export const DEFAULT_COMPETITOR_HOTELS: CompetitorHotel[] = [
     url: "https://www.booking.com/hotel/my/crystal-crown-harbour-view.html"
   },
   {
+    competitor_hotel_search: "Merrida Hotel Klang",
     competitor_hotel_id: "418290",
     competitor_hotel_name: "Merrida Hotel Klang",
     address: "18R Lebuh Enggang, Off Jalan Meru",
@@ -35,6 +38,7 @@ export const DEFAULT_COMPETITOR_HOTELS: CompetitorHotel[] = [
     url: "https://www.booking.com/hotel/my/merrida.html"
   },
   {
+    competitor_hotel_search: "Wyndham Acmar Klang",
     competitor_hotel_id: "591024",
     competitor_hotel_name: "Wyndham Acmar Klang",
     address: "1 Persiaran Bukit Raja 1/KU1",
@@ -43,6 +47,7 @@ export const DEFAULT_COMPETITOR_HOTELS: CompetitorHotel[] = [
     url: "https://www.booking.com/hotel/my/wyndham-acmar.html"
   },
   {
+    competitor_hotel_search: "Klang Histana Hotel",
     competitor_hotel_id: "254821",
     competitor_hotel_name: "Klang Histana Hotel",
     address: "Jalan Batu Tiga Lama",
@@ -51,6 +56,7 @@ export const DEFAULT_COMPETITOR_HOTELS: CompetitorHotel[] = [
     url: "https://www.booking.com/hotel/my/klang-histana.html"
   },
   {
+    competitor_hotel_search: "GM City Hotel Klang",
     competitor_hotel_id: "329402",
     competitor_hotel_name: "GM City Hotel Klang",
     address: "Jalan Kasuarina 1, Bandar Botanic",

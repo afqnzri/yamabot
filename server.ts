@@ -19,7 +19,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+// Environment constraint: Dev server must always bind strictly to port 3000
+const PORT = 3000;
 const isProd = process.env.NODE_ENV === 'production';
 
 // Increase payload limit for base64 workbook uploads
@@ -247,11 +248,28 @@ async function runScheduledTask(triggerSource = 'Automated Timer') {
     const parsed = ExcelService.parseWorkbookFromBuffer(buffer);
     const hotelName = parsed.hotelName || schedulerConfig.masterHotelName || 'Hotel';
     const hotelRooms = parsed.hotelRooms || [];
-    const mappedRooms = parsed.mappedRooms || [];
+    let mappedRooms = parsed.mappedRooms || [];
+    let competitorHotels = parsed.competitorHotels || [];
 
-    const activeRooms: CompetitorRoomMapping[] = mappedRooms.filter(
+    let activeRooms: CompetitorRoomMapping[] = mappedRooms.filter(
       r => r.our_room_type && !['UNMAPPED', 'IGNORE', 'NONE', ''].includes(r.our_room_type.toUpperCase())
     );
+
+    if (activeRooms.length === 0 && competitorHotels.length > 0) {
+      console.log(`⏰ [Scheduler] Auto-resolving competitor_hotel_search for ${competitorHotels.length} hotels...`);
+      const resolved = await RapidApiService.resolveCompetitorsAndRooms(
+        competitorHotels,
+        hotelRooms,
+        arrivalDate,
+        departureDate,
+        RAPIDAPI_KEY,
+        RAPIDAPI_HOST
+      );
+      mappedRooms = resolved.generatedRooms;
+      activeRooms = mappedRooms.filter(
+        r => r.our_room_type && !['UNMAPPED', 'IGNORE', 'NONE', ''].includes(r.our_room_type.toUpperCase())
+      );
+    }
 
     if (activeRooms.length === 0) {
       throw new Error('No competitor rooms have been mapped in the Master Workbook.');
@@ -492,16 +510,40 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
     const parsed = ExcelService.parseWorkbookFromBuffer(buffer);
     const hotelName = parsed.hotelName || 'Hotel';
     const hotelRooms = parsed.hotelRooms || [];
-    const mappedRooms = parsed.mappedRooms || [];
+    let mappedRooms = parsed.mappedRooms || [];
+    let competitorHotels = parsed.competitorHotels || [];
 
-    const activeRooms: CompetitorRoomMapping[] = mappedRooms.filter(
+    let activeRooms: CompetitorRoomMapping[] = mappedRooms.filter(
       r => r.our_room_type && !['UNMAPPED', 'IGNORE', 'NONE', ''].includes(r.our_room_type.toUpperCase())
     );
+
+    // Auto-resolve if competitor_room is empty but competitor_hotel has competitor_hotel_search
+    if (activeRooms.length === 0 && competitorHotels.length > 0) {
+      console.log(`🔍 [Telegram] Resolving competitor_hotel_search for ${competitorHotels.length} hotels...`);
+      await sendTelegramMessage(
+        chatId,
+        `🔍 Reading \`competitor_hotel_search\` from Tab competitor_hotel...\nAuto-discovering ${competitorHotels.length} hotels & room lists via Booking.com API...`,
+        msgId
+      );
+      const resolved = await RapidApiService.resolveCompetitorsAndRooms(
+        competitorHotels,
+        hotelRooms,
+        arrivalDate,
+        departureDate,
+        RAPIDAPI_KEY,
+        RAPIDAPI_HOST
+      );
+      competitorHotels = resolved.updatedHotels;
+      mappedRooms = resolved.generatedRooms;
+      activeRooms = mappedRooms.filter(
+        r => r.our_room_type && !['UNMAPPED', 'IGNORE', 'NONE', ''].includes(r.our_room_type.toUpperCase())
+      );
+    }
 
     if (activeRooms.length === 0) {
       await sendTelegramMessage(
         chatId,
-        `⚠️ File \`${fileName}\` does not contain any mapped competitor rooms.\n` +
+        `⚠️ File \`${fileName}\` does not contain any mapped competitor rooms or competitor_hotel_search entries.\n` +
         `Please open Flow 1 on the website and map your hotel rooms first.`,
         msgId
       );

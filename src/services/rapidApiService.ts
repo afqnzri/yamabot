@@ -369,4 +369,114 @@ export class RapidApiService {
     onProgress?.(100, 'Extraction complete!');
     return { priceReport, updatedRooms };
   }
+
+  /**
+   * Auto-resolves competitor hotels from competitor_hotel_search (or existing IDs),
+   * queries getHotelDetails (Step 3), queries getRoomList (Step 4),
+   * and auto-maps them to our hotel room types to populate competitor_room.
+   */
+  static async resolveCompetitorsAndRooms(
+    competitorHotels: CompetitorHotel[],
+    hotelRooms: HotelRoomType[],
+    arrivalDate: string,
+    departureDate: string,
+    apiKey?: string,
+    apiHost?: string,
+    onProgress?: (current: number, total: number, hotelName: string) => void
+  ): Promise<{
+    updatedHotels: CompetitorHotel[];
+    generatedRooms: CompetitorRoomMapping[];
+  }> {
+    const updatedHotels: CompetitorHotel[] = [];
+    const generatedRooms: CompetitorRoomMapping[] = [];
+
+    for (let i = 0; i < competitorHotels.length; i++) {
+      const h = competitorHotels[i];
+      const searchQuery = (h.competitor_hotel_search || h.competitor_hotel_name || '').trim();
+      let hotelId = (h.competitor_hotel_id || '').trim();
+      let hotelName = (h.competitor_hotel_name || searchQuery || `Competitor ${i + 1}`).trim();
+
+      onProgress?.(i + 1, competitorHotels.length, searchQuery || hotelName);
+
+      // Step 2: If hotel_id is missing, search via searchDestination
+      if (!hotelId && searchQuery) {
+        try {
+          if (/^\d+$/.test(searchQuery)) {
+            hotelId = searchQuery;
+          } else {
+            const searchResults = await this.searchHotels(searchQuery, apiKey, apiHost);
+            if (searchResults.length > 0) {
+              hotelId = searchResults[0].competitor_hotel_id;
+              hotelName = searchResults[0].competitor_hotel_name || hotelName;
+            }
+          }
+        } catch (e) {
+          console.warn(`Search failed for ${searchQuery}:`, e);
+        }
+      }
+
+      if (!hotelId) {
+        hotelId = `comp_${i + 1}`;
+      }
+
+      // Step 3: GET Get Hotel Details
+      let details: CompetitorHotel;
+      try {
+        details = await this.getHotelDetails(hotelId, arrivalDate, departureDate, apiKey, apiHost);
+      } catch {
+        details = {
+          competitor_hotel_id: hotelId,
+          competitor_hotel_name: hotelName,
+          address: h.address || 'Klang, Selangor',
+          city: h.city || 'Selangor',
+          review_score: h.review_score || 8.0,
+          url: h.url
+        };
+      }
+
+      const mergedHotel: CompetitorHotel = {
+        competitor_hotel_search: searchQuery || details.competitor_hotel_name || hotelName,
+        competitor_hotel_id: hotelId,
+        competitor_hotel_name: details.competitor_hotel_name || hotelName,
+        address: details.address || h.address,
+        city: details.city || h.city,
+        review_score: details.review_score ?? h.review_score,
+        url: details.url || h.url
+      };
+      updatedHotels.push(mergedHotel);
+
+      // Step 4: GET Get Room List
+      try {
+        const rooms = await this.getRoomList(hotelId, arrivalDate, departureDate, apiKey, apiHost);
+        rooms.forEach(r => {
+          // Auto-match room type against hotelRooms
+          const rName = r.room_name.toLowerCase();
+          let matchedType = 'UNMAPPED';
+          for (const hr of hotelRooms) {
+            const tokens = hr.room_type.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+            for (const t of tokens) {
+              if (rName.includes(t)) {
+                matchedType = hr.room_type;
+                break;
+              }
+            }
+            if (matchedType !== 'UNMAPPED') break;
+          }
+
+          generatedRooms.push({
+            competitor_hotel_id: hotelId,
+            competitor_hotel_name: mergedHotel.competitor_hotel_name,
+            competitor_room_id: r.competitor_room_id,
+            competitor_room_name: r.room_name,
+            gross_amount: r.gross_amount,
+            our_room_type: matchedType
+          });
+        });
+      } catch (e) {
+        console.warn(`Failed to fetch rooms for ${hotelId}:`, e);
+      }
+    }
+
+    return { updatedHotels, generatedRooms };
+  }
 }

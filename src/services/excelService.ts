@@ -30,6 +30,7 @@ export class ExcelService {
 
     // 2. competitor_hotel
     const compHotelRows = competitorHotels.map(h => ({
+      competitor_hotel_search: h.competitor_hotel_search || h.competitor_hotel_name,
       competitor_hotel_id: h.competitor_hotel_id,
       competitor_hotel_name: h.competitor_hotel_name,
       address: h.address || '',
@@ -169,14 +170,43 @@ export class ExcelService {
     // Parse competitor_hotel
     if (wb.SheetNames.includes('competitor_hotel')) {
       const data = XLSX.utils.sheet_to_json<any>(wb.Sheets['competitor_hotel']);
-      competitorHotels = data.map(d => ({
-        competitor_hotel_id: String(d.competitor_hotel_id || ''),
-        competitor_hotel_name: String(d.competitor_hotel_name || ''),
-        address: d.address ? String(d.address) : undefined,
-        city: d.city ? String(d.city) : undefined,
-        review_score: d.review_score ?? undefined,
-        url: d.url ? String(d.url) : undefined
-      }));
+      competitorHotels = data.map(d => {
+        const searchStr = String(
+          d.competitor_hotel_search ||
+          d.competitor_hotel ||
+          d.competitor_hotel_name ||
+          d.hotel_search ||
+          d.search_query ||
+          d.hotel_name ||
+          d.query ||
+          ''
+        ).trim();
+
+        const hotelId = String(
+          d.competitor_hotel_id ||
+          d.hotel_id ||
+          d.dest_id ||
+          (searchStr && /^\d+$/.test(searchStr) ? searchStr : '') ||
+          ''
+        ).trim();
+
+        const hotelName = String(
+          d.competitor_hotel_name ||
+          d.hotel_name ||
+          (searchStr && !/^\d+$/.test(searchStr) ? searchStr : '') ||
+          (hotelId ? `Hotel ${hotelId}` : '')
+        ).trim();
+
+        return {
+          competitor_hotel_search: searchStr || hotelName,
+          competitor_hotel_id: hotelId,
+          competitor_hotel_name: hotelName || searchStr || (hotelId ? `Hotel ${hotelId}` : 'Unknown Hotel'),
+          address: d.address ? String(d.address) : undefined,
+          city: d.city ? String(d.city) : undefined,
+          review_score: d.review_score ?? undefined,
+          url: d.url ? String(d.url) : undefined
+        };
+      }).filter(h => h.competitor_hotel_search || h.competitor_hotel_id || h.competitor_hotel_name);
     }
 
     // Parse competitor_room
@@ -233,14 +263,43 @@ export class ExcelService {
 
     if (wb.SheetNames.includes('competitor_hotel')) {
       const data = XLSX.utils.sheet_to_json<any>(wb.Sheets['competitor_hotel']);
-      competitorHotels = data.map(d => ({
-        competitor_hotel_id: String(d.competitor_hotel_id || ''),
-        competitor_hotel_name: String(d.competitor_hotel_name || ''),
-        address: d.address ? String(d.address) : undefined,
-        city: d.city ? String(d.city) : undefined,
-        review_score: d.review_score ?? undefined,
-        url: d.url ? String(d.url) : undefined
-      }));
+      competitorHotels = data.map(d => {
+        const searchStr = String(
+          d.competitor_hotel_search ||
+          d.competitor_hotel ||
+          d.competitor_hotel_name ||
+          d.hotel_search ||
+          d.search_query ||
+          d.hotel_name ||
+          d.query ||
+          ''
+        ).trim();
+
+        const hotelId = String(
+          d.competitor_hotel_id ||
+          d.hotel_id ||
+          d.dest_id ||
+          (searchStr && /^\d+$/.test(searchStr) ? searchStr : '') ||
+          ''
+        ).trim();
+
+        const hotelName = String(
+          d.competitor_hotel_name ||
+          d.hotel_name ||
+          (searchStr && !/^\d+$/.test(searchStr) ? searchStr : '') ||
+          (hotelId ? `Hotel ${hotelId}` : '')
+        ).trim();
+
+        return {
+          competitor_hotel_search: searchStr || hotelName,
+          competitor_hotel_id: hotelId,
+          competitor_hotel_name: hotelName || searchStr || (hotelId ? `Hotel ${hotelId}` : 'Unknown Hotel'),
+          address: d.address ? String(d.address) : undefined,
+          city: d.city ? String(d.city) : undefined,
+          review_score: d.review_score ?? undefined,
+          url: d.url ? String(d.url) : undefined
+        };
+      }).filter(h => h.competitor_hotel_search || h.competitor_hotel_id || h.competitor_hotel_name);
     }
 
     if (wb.SheetNames.includes('competitor_room')) {

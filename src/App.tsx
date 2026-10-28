@@ -83,10 +83,30 @@ export default function App() {
       const data = await import('./services/excelService').then(m => m.ExcelService.importInputWorkbook(file));
       if (data.hotelName) setHotelName(data.hotelName);
       if (data.hotelRooms.length > 0) setHotelRooms(data.hotelRooms);
-      if (data.competitorHotels.length > 0) setCompetitorHotels(data.competitorHotels);
-      if (data.mappedRooms.length > 0) setMappedRooms(data.mappedRooms);
+
+      let finalHotels = data.competitorHotels;
+      let finalRooms = data.mappedRooms;
+
+      if (finalHotels.length > 0 && finalRooms.length === 0) {
+        const { RapidApiService } = await import('./services/rapidApiService');
+        const defaultArr = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+        const defaultDep = new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10);
+        const resolved = await RapidApiService.resolveCompetitorsAndRooms(
+          finalHotels,
+          data.hotelRooms.length > 0 ? data.hotelRooms : hotelRooms,
+          defaultArr,
+          defaultDep,
+          rapidApiKey,
+          rapidApiHost
+        );
+        finalHotels = resolved.updatedHotels;
+        finalRooms = resolved.generatedRooms;
+      }
+
+      setCompetitorHotels(finalHotels);
+      setMappedRooms(finalRooms);
       setUploadedFileName(file.name);
-      return data;
+      return { ...data, competitorHotels: finalHotels, mappedRooms: finalRooms };
     } catch (e: any) {
       console.error(`Error reading uploaded Excel file:`, e);
       throw e;
