@@ -4,6 +4,7 @@ import { Flow1Mapping } from './components/Flow1Mapping';
 import { Flow2Extraction } from './components/Flow2Extraction';
 import { TaskScheduler } from './components/TaskScheduler';
 import { SettingsModal } from './components/SettingsModal';
+import { DatabaseModal } from './components/DatabaseModal';
 import { 
   DEFAULT_HOTEL_NAME, 
   DEFAULT_HOTEL_ROOMS, 
@@ -74,8 +75,9 @@ export default function App() {
     return localStorage.getItem('yama_telegram_chat_id') || '';
   });
 
-  // Consolidated Settings Modal
+  // Consolidated Settings Modal & Database Modal
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDatabaseOpen, setIsDatabaseOpen] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
   const handleUploadWorkbook = async (file: File, autoRun: boolean = false) => {
@@ -162,6 +164,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenDatabase={() => setIsDatabaseOpen(true)}
         isSimulated={!rapidApiKey.trim()}
         telegramConfigured={Boolean(telegramToken.trim() && telegramChatId.trim())}
         botStatus={botStatus}
@@ -183,6 +186,7 @@ export default function App() {
             rapidApiHost={rapidApiHost}
             onResetDefaults={handleResetDefaults}
             onProceedToFlow2={() => setActiveTab('flow2')}
+            onOpenDatabase={() => setIsDatabaseOpen(true)}
           />
         )}
 
@@ -199,6 +203,7 @@ export default function App() {
             onUploadWorkbook={handleUploadWorkbook}
             uploadedFileName={uploadedFileName}
             onSwitchToFlow1={() => setActiveTab('flow1')}
+            onOpenDatabase={() => setIsDatabaseOpen(true)}
             botStatus={botStatus}
           />
         )}
@@ -221,15 +226,36 @@ export default function App() {
       <footer className="bg-white border-t border-slate-200 mt-auto py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
           <div>
-            <strong>YAMA Bot</strong> • Hotel Competitor Room Mapping & Price Monitoring
+            <strong>YAMA Bot</strong> • Hotel Competitor Room Mapping & Price Monitoring (Cloudflare D1 &amp; SQLite)
           </div>
           <div className="flex items-center gap-4">
+            <button onClick={() => setIsDatabaseOpen(true)} className="hover:text-indigo-600 transition-colors font-medium text-indigo-700">
+              Database &amp; Cloudflare D1
+            </button>
             <button onClick={() => setIsSettingsOpen(true)} className="hover:text-blue-600 transition-colors font-medium">
-              Settings, Cloudflare &amp; Python Scripts
+              Settings &amp; Telegram
             </button>
           </div>
         </div>
       </footer>
+
+      {/* Database Modal */}
+      <DatabaseModal
+        isOpen={isDatabaseOpen}
+        onClose={() => setIsDatabaseOpen(false)}
+        currentSetup={{
+          hotelName,
+          hotelRooms,
+          competitorHotels,
+          mappedRooms
+        }}
+        onLoadSetup={(setup) => {
+          setHotelName(setup.hotelName);
+          setHotelRooms(setup.hotelRooms);
+          setCompetitorHotels(setup.competitorHotels);
+          setMappedRooms(setup.mappedRooms);
+        }}
+      />
 
       {/* Unified Settings Modal */}
       <SettingsModal

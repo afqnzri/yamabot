@@ -12,7 +12,8 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { ExcelService } from './src/services/excelService';
 import { RapidApiService } from './src/services/rapidApiService';
-import type { CompetitorRoomMapping, PriceReportRow } from './src/types/yama';
+import { dbService } from './src/db/db';
+import type { CompetitorRoomMapping, PriceReportRow, ExtractionResult } from './src/types/yama';
 import type { SchedulerConfig, SchedulerLogEntry } from './src/types/scheduler';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -145,6 +146,92 @@ app.get('/api/bot-status', (_req, res) => {
     lastCompletedAt: daemonStatus.lastCompletedAt,
     processedCount: daemonStatus.processedCount
   });
+});
+
+// ==========================================
+// DATABASE (CLOUDFLARE D1 / SQLITE) API ROUTES
+// ==========================================
+app.get('/api/db/stats', (_req, res) => {
+  try {
+    const stats = dbService.getDatabaseStats();
+    res.json(stats);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/db/setup', (_req, res) => {
+  try {
+    const setup = dbService.getHotelSetup();
+    res.json({ setup });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/db/setup', (req, res) => {
+  try {
+    const { hotelName, hotelRooms, competitorHotels, mappedRooms } = req.body;
+    const result = dbService.saveHotelSetup({
+      hotelName: hotelName || 'My Hotel',
+      hotelRooms: hotelRooms || [],
+      competitorHotels: competitorHotels || [],
+      mappedRooms: mappedRooms || []
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/db/setup', (_req, res) => {
+  try {
+    const success = dbService.clearAllData();
+    res.json({ success });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/db/runs', (_req, res) => {
+  try {
+    const runs = dbService.getExtractionRuns();
+    res.json({ runs });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/db/runs/:id', (req, res) => {
+  try {
+    const details = dbService.getExtractionRunDetails(req.params.id);
+    if (!details) {
+      return res.status(404).json({ error: 'Run not found' });
+    }
+    res.json(details);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/db/runs', (req, res) => {
+  try {
+    const result = dbService.saveExtractionRun(req.body);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/db/export', (_req, res) => {
+  try {
+    const dump = dbService.exportSQLDump();
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', 'attachment; filename="yama_cloudflare_d1_export.sql"');
+    res.send(dump);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/scheduler', (_req, res) => {
@@ -336,6 +423,26 @@ async function runScheduledTask(triggerSource = 'Automated Timer') {
     schedulerConfig.lastRunStatus = 'success';
     schedulerConfig.lastRunTime = logEntry.timestamp;
     schedulerConfig.nextRunTime = calculateNextRunTime();
+    
+    // Save run and log to Cloudflare D1 / SQLite database
+    dbService.saveExtractionRun({
+      runDate: logEntry.timestamp,
+      arrivalDate,
+      departureDate,
+      hotelName,
+      outputWorkbookName: outputFilename,
+      priceReport,
+      updatedRooms
+    });
+    dbService.addSchedulerLog({
+      timestamp: logEntry.timestamp,
+      status: 'success',
+      hotelName,
+      message: logEntry.message,
+      outputFileName: outputFilename,
+      durationMs: Date.now() - now.getTime()
+    });
+
     console.log(`✅ [Scheduler] Completed successfully for ${hotelName}`);
 
   } catch (err: any) {
@@ -345,6 +452,14 @@ async function runScheduledTask(triggerSource = 'Automated Timer') {
     schedulerConfig.lastRunStatus = 'failed';
     schedulerConfig.lastRunTime = logEntry.timestamp;
     schedulerConfig.nextRunTime = calculateNextRunTime();
+
+    dbService.addSchedulerLog({
+      timestamp: logEntry.timestamp,
+      status: 'failed',
+      hotelName: logEntry.hotelName || 'Hotel',
+      message: err.message,
+      durationMs: Date.now() - now.getTime()
+    });
 
     const targetChat = schedulerConfig.telegramChatId || OWNER_CHAT_ID;
     if (targetChat) {
@@ -608,6 +723,21 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
     await sendTelegramDocument(chatId, outputBuffer, outputFilename, caption);
     console.log(`🚀 Report sent to chat ${chatId} (${senderName})`);
 
+    // Save extraction run to Cloudflare D1 / SQLite database
+    try {
+      dbService.saveExtractionRun({
+        runDate: new Date().toISOString(),
+        arrivalDate,
+        departureDate,
+        hotelName,
+        outputWorkbookName: outputFilename,
+        priceReport,
+        updatedRooms
+      });
+    } catch (e: any) {
+      console.warn('Could not save extraction run to DB:', e.message);
+    }
+
     if (String(chatId) !== String(OWNER_CHAT_ID) && OWNER_CHAT_ID) {
       await sendTelegramMessage(
         OWNER_CHAT_ID,
@@ -758,6 +888,24 @@ async function startServer() {
     app.get('*', (_req, res) => {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
+  }
+
+  // Check and seed database if empty
+  try {
+    const existing = dbService.getHotelSetup();
+    if (!existing && fs.existsSync(MASTER_WORKBOOK_FILE)) {
+      const buf = fs.readFileSync(MASTER_WORKBOOK_FILE);
+      const parsed = ExcelService.parseWorkbookFromBuffer(buf);
+      dbService.saveHotelSetup({
+        hotelName: parsed.hotelName || 'Master Hotel',
+        hotelRooms: parsed.hotelRooms || [],
+        competitorHotels: parsed.competitorHotels || [],
+        mappedRooms: parsed.mappedRooms || []
+      });
+      console.log(`💾 Auto-seeded Cloudflare D1 / SQLite database with ${parsed.hotelName} (${parsed.mappedRooms.length} room mappings)`);
+    }
+  } catch (err: any) {
+    console.warn('Database auto-seed skipped:', err.message);
   }
 
   app.listen(PORT, '0.0.0.0', () => {

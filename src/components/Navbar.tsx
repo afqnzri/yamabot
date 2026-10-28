@@ -4,13 +4,15 @@ import {
   Settings, 
   Layers, 
   Activity,
-  Clock
+  Clock,
+  Database
 } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: 'flow1' | 'flow2' | 'scheduler';
   setActiveTab: (tab: 'flow1' | 'flow2' | 'scheduler') => void;
   onOpenSettings: () => void;
+  onOpenDatabase: () => void;
   isSimulated: boolean;
   telegramConfigured: boolean;
   botStatus: {
@@ -26,6 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   onOpenSettings,
+  onOpenDatabase,
   isSimulated,
   telegramConfigured,
   botStatus
@@ -133,6 +136,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : 'Bot: OFFLINE'}
               </span>
             </div>
+
+            <button
+              onClick={onOpenDatabase}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 text-xs font-semibold transition-colors shadow-xs"
+              title="Cloudflare D1 & SQLite Database"
+            >
+              <Database className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Database</span>
+            </button>
 
             <button
               onClick={onOpenSettings}

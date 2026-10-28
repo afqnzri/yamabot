@@ -16,11 +16,14 @@ import {
   BedDouble,
   Sliders,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  Database,
+  Save
 } from 'lucide-react';
 import { HotelRoomType, CompetitorHotel, CompetitorRoomMapping } from '../types/yama';
 import { ExcelService } from '../services/excelService';
 import { RapidApiService } from '../services/rapidApiService';
+import { DbClientService } from '../services/dbClientService';
 
 interface Flow1MappingProps {
   hotelName: string;
@@ -35,6 +38,7 @@ interface Flow1MappingProps {
   rapidApiHost: string;
   onResetDefaults: () => void;
   onProceedToFlow2?: () => void;
+  onOpenDatabase?: () => void;
 }
 
 export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
@@ -49,7 +53,8 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
   rapidApiKey,
   rapidApiHost,
   onResetDefaults,
-  onProceedToFlow2
+  onProceedToFlow2,
+  onOpenDatabase
 }) => {
   // Discovery Dates for Step 3 (Get Hotel Details) and Step 4 (Get Room List)
   const defaultArr = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
@@ -85,6 +90,37 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
   const showNotify = (text: string, type: 'success' | 'info' | 'error' = 'info') => {
     setNotification({ text, type });
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleSaveToDatabase = async () => {
+    if (!hotelName && hotelRooms.length === 0) {
+      showNotify('No hotel data to save. Please add hotel rooms or upload an Excel workbook first.', 'error');
+      return;
+    }
+    const res = await DbClientService.saveSetup({
+      hotelName: hotelName || 'My Hotel',
+      hotelRooms,
+      competitorHotels,
+      mappedRooms
+    });
+    if (res.success) {
+      showNotify(`Saved ${hotelName || 'hotel'} (${mappedRooms.length} mapped rooms) to Cloudflare D1 / SQLite database!`, 'success');
+    } else {
+      showNotify(`Failed to save to database: ${res.message}`, 'error');
+    }
+  };
+
+  const handleLoadFromDatabase = async () => {
+    const setup = await DbClientService.getSavedSetup();
+    if (setup && (setup.hotelRooms.length > 0 || setup.mappedRooms.length > 0)) {
+      setHotelName(setup.hotelName);
+      setHotelRooms(setup.hotelRooms);
+      setCompetitorHotels(setup.competitorHotels);
+      setMappedRooms(setup.mappedRooms);
+      showNotify(`Loaded ${setup.hotelName} (${setup.mappedRooms.length} room mappings) from database!`, 'success');
+    } else {
+      showNotify('No saved hotel setup found in database. Upload an Excel workbook or configure rooms and click "Save to DB".', 'info');
+    }
   };
 
   const handleAddHotelRoom = (e: React.FormEvent) => {
@@ -425,6 +461,24 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleLoadFromDatabase}
+            className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs"
+            title="Load saved hotel and room mappings from database"
+          >
+            <Database className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Load from DB</span>
+          </button>
+
+          <button
+            onClick={handleSaveToDatabase}
+            className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs"
+            title="Save current hotel configuration into database"
+          >
+            <Save className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Save to DB</span>
+          </button>
+
           <label className="cursor-pointer px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-2 shadow-xs">
             <Upload className="w-3.5 h-3.5 text-slate-500" />
             <span>Upload .xlsx</span>

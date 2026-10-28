@@ -18,9 +18,10 @@ export interface SchedulerLogEntry {
   timestamp: string;
   status: 'success' | 'failed' | 'running';
   hotelName: string;
-  arrivalDate: string;
-  departureDate: string;
-  roomsQueried: number;
+  arrivalDate?: string;
+  departureDate?: string;
+  roomsQueried?: number;
   message: string;
   outputFileName?: string;
+  durationMs?: number;
 }

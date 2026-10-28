@@ -1,0 +1,18 @@
+name = "yama-bot"
+compatibility_date = "2024-04-01"
+pages_build_output_dir = "dist"
+
+# ============================================================
+# Cloudflare D1 Database Binding
+# ============================================================
+# Run to create D1 database: npx wrangler d1 create yama_db
+# Paste the generated database_id below:
+# Run to init schema: npx wrangler d1 execute yama_db --file=src/db/schema.sql
+# ============================================================
+[[d1_databases]]
+binding = "DB"
+database_name = "yama_db"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[vars]
+RAPIDAPI_HOST = "booking-com15.p.rapidapi.com"

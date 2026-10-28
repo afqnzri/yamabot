@@ -606,8 +606,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({
                     </div>
 
                     <div className="text-[11px] text-slate-600 flex items-center justify-between">
-                      <span>Query Dates: <strong>{log.arrivalDate} → {log.departureDate}</strong></span>
-                      {log.roomsQueried > 0 && <span>{log.roomsQueried} rooms</span>}
+                      <span>Query Dates: <strong>{log.arrivalDate || 'N/A'} → {log.departureDate || 'N/A'}</strong></span>
+                      {Boolean(log.roomsQueried && log.roomsQueried > 0) && <span>{log.roomsQueried} rooms</span>}
                     </div>
 
                     <p className="text-[11px] leading-tight text-slate-700 mt-0.5">

@@ -14,12 +14,14 @@ import {
   ExternalLink, 
   ChevronDown, 
   ChevronUp, 
-  FileText 
+  FileText,
+  Database
 } from 'lucide-react';
 import { HotelRoomType, CompetitorRoomMapping, PriceReportRow, ExtractionResult } from '../types/yama';
 import { RapidApiService } from '../services/rapidApiService';
 import { ExcelService } from '../services/excelService';
 import { TelegramService } from '../services/telegramService';
+import { DbClientService } from '../services/dbClientService';
 
 interface Flow2ExtractionProps {
   hotelName: string;
@@ -33,6 +35,7 @@ interface Flow2ExtractionProps {
   onUploadWorkbook: (file: File, autoRun?: boolean) => Promise<any>;
   uploadedFileName?: string | null;
   onSwitchToFlow1: () => void;
+  onOpenDatabase?: () => void;
   botStatus?: {
     isOnline: boolean;
     isBusy: boolean;
@@ -56,6 +59,7 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
   onUploadWorkbook,
   uploadedFileName,
   onSwitchToFlow1,
+  onOpenDatabase,
   botStatus
 }) => {
   const [uploadLoading, setUploadLoading] = useState(false);
@@ -141,6 +145,11 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
 
       setExtractionResult(result);
       setStatusMessage('Price analysis completed!');
+      
+      // Auto-save run to Cloudflare D1 / SQLite database
+      DbClientService.recordRun(result).catch(e => {
+        console.warn('Could not record run to database:', e);
+      });
     } catch (err: any) {
       setStatusMessage(`Extraction error: ${err.message}`);
     } finally {
@@ -250,6 +259,17 @@ export const Flow2Extraction: React.FC<Flow2ExtractionProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {onOpenDatabase && (
+            <button
+              onClick={onOpenDatabase}
+              className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs"
+              title="View past extraction runs stored in the database"
+            >
+              <Database className="w-3.5 h-3.5 text-indigo-600" />
+              <span>DB History</span>
+            </button>
+          )}
+
           <label className="cursor-pointer px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-2 shadow-xs">
             <Upload className="w-3.5 h-3.5 text-slate-500" />
             <span>{uploadLoading ? 'Reading...' : 'Upload .xlsx'}</span>
