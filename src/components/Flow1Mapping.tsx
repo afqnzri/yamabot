@@ -321,14 +321,15 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
       if (compHotels.length > 0) {
         setCompetitorHotels(compHotels);
 
-        // Check if any hotel lacks mapped rooms in the file or lacks competitor_hotel_id
-        const needsDiscovery = fileMappedRooms.length === 0 || compHotels.some(
+        // Always resolve if any hotel has competitor_hotel_search, lacks competitor_hotel_id, or competitor_room is empty
+        const hasSearchQueries = compHotels.some(h => !!h.competitor_hotel_search);
+        const hasMissingRooms = fileMappedRooms.length === 0 || compHotels.some(
           h => !h.competitor_hotel_id || !fileMappedRooms.some(m => m.competitor_hotel_id === h.competitor_hotel_id)
         );
 
-        if (needsDiscovery) {
+        if (hasSearchQueries || hasMissingRooms) {
           showNotify(
-            `Reading competitor_hotel_search from Tab competitor_hotel... Auto-generating ${compHotels.length} hotels and rooms into competitor_room!`,
+            `Reading competitor_hotel_search from Tab competitor_hotel... Auto-generating ${compHotels.length} hotels and listing all rooms into Sheet: competitor_room!`,
             'info'
           );
           setIsBatchFetching(true);
@@ -344,10 +345,26 @@ export const Flow1Mapping: React.FC<Flow1MappingProps> = ({
                 setBatchProgress({ current, total, hotelName });
               }
             );
+
+            // Preserve any existing user mappings if present
+            let finalRooms = resolved.generatedRooms;
+            if (fileMappedRooms.length > 0) {
+              finalRooms = finalRooms.map(gen => {
+                const existing = fileMappedRooms.find(
+                  ex => (ex.competitor_room_id && ex.competitor_room_id === gen.competitor_room_id) ||
+                        (ex.competitor_hotel_id === gen.competitor_hotel_id && ex.competitor_room_name.toLowerCase() === gen.competitor_room_name.toLowerCase())
+                );
+                if (existing && existing.our_room_type && existing.our_room_type !== 'UNMAPPED') {
+                  return { ...gen, our_room_type: existing.our_room_type };
+                }
+                return gen;
+              });
+            }
+
             setCompetitorHotels(resolved.updatedHotels);
-            setMappedRooms(resolved.generatedRooms);
+            setMappedRooms(finalRooms);
             showNotify(
-              `Read competitor_hotel_search successfully! Populated ${resolved.updatedHotels.length} competitor hotels and generated ${resolved.generatedRooms.length} rooms in Sheet: competitor_room.`,
+              `Read competitor_hotel_search successfully! Populated ${resolved.updatedHotels.length} competitor hotels and generated ${finalRooms.length} rooms in Sheet: competitor_room.`,
               'success'
             );
           } catch (autoErr: any) {

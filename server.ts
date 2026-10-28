@@ -255,7 +255,8 @@ async function runScheduledTask(triggerSource = 'Automated Timer') {
       r => r.our_room_type && !['UNMAPPED', 'IGNORE', 'NONE', ''].includes(r.our_room_type.toUpperCase())
     );
 
-    if (activeRooms.length === 0 && competitorHotels.length > 0) {
+    const hasSearchQueries = competitorHotels.some(h => !!h.competitor_hotel_search);
+    if ((activeRooms.length === 0 || hasSearchQueries) && competitorHotels.length > 0) {
       console.log(`⏰ [Scheduler] Auto-resolving competitor_hotel_search for ${competitorHotels.length} hotels...`);
       const resolved = await RapidApiService.resolveCompetitorsAndRooms(
         competitorHotels,
@@ -517,8 +518,9 @@ async function handleDocumentUpload(chatId: number | string, message: any) {
       r => r.our_room_type && !['UNMAPPED', 'IGNORE', 'NONE', ''].includes(r.our_room_type.toUpperCase())
     );
 
-    // Auto-resolve if competitor_room is empty but competitor_hotel has competitor_hotel_search
-    if (activeRooms.length === 0 && competitorHotels.length > 0) {
+    // Auto-resolve if competitor_room is empty or competitor_hotel has competitor_hotel_search
+    const hasSearchQueries = competitorHotels.some(h => !!h.competitor_hotel_search);
+    if ((activeRooms.length === 0 || hasSearchQueries) && competitorHotels.length > 0) {
       console.log(`🔍 [Telegram] Resolving competitor_hotel_search for ${competitorHotels.length} hotels...`);
       await sendTelegramMessage(
         chatId,

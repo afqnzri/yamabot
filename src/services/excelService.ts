@@ -137,6 +137,45 @@ export class ExcelService {
   }
 
   /**
+  /**
+   * Helper to find a worksheet case-insensitively and ignoring whitespace/special characters
+   */
+  private static findSheet(wb: XLSX.WorkBook, ...candidatePatterns: string[]): { name: string; sheet: XLSX.WorkSheet } | null {
+    const normalize = (s: string) => String(s || '').toLowerCase().replace(/[\s_\-\.]/g, '');
+    for (const pat of candidatePatterns) {
+      const normPat = normalize(pat);
+      for (const name of wb.SheetNames) {
+        const normName = normalize(name);
+        if (normName === normPat || normName.includes(normPat)) {
+          return { name, sheet: wb.Sheets[name] };
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Helper to retrieve a field value from an Excel row object case-insensitively and ignoring spaces
+   */
+  private static getField(row: any, ...candidates: string[]): any {
+    if (!row || typeof row !== 'object') return undefined;
+    for (const c of candidates) {
+      if (row[c] !== undefined && row[c] !== null && String(row[c]).trim() !== '') {
+        return row[c];
+      }
+    }
+    const normalize = (s: string) => String(s || '').toLowerCase().replace(/[\s_\-\.]/g, '');
+    const normCandidates = candidates.map(normalize);
+    for (const [k, v] of Object.entries(row)) {
+      if (v === undefined || v === null || String(v).trim() === '') continue;
+      if (normCandidates.includes(normalize(k))) {
+        return v;
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * Imports an existing Excel workbook (.xlsx) and parses its sheets
    */
   static async importInputWorkbook(file: File): Promise<{
@@ -147,89 +186,7 @@ export class ExcelService {
   }> {
     const arrayBuffer = await file.arrayBuffer();
     const wb = XLSX.read(arrayBuffer, { type: 'array' });
-
-    let hotelName = file.name.replace(/\.xlsx$/i, '');
-    let hotelRooms: HotelRoomType[] = [];
-    let competitorHotels: CompetitorHotel[] = [];
-    let mappedRooms: CompetitorRoomMapping[] = [];
-
-    // Parse hotel_data
-    if (wb.SheetNames.includes('hotel_data')) {
-      const data = XLSX.utils.sheet_to_json<any>(wb.Sheets['hotel_data']);
-      if (data.length > 0 && data[0].hotel_name) {
-        hotelName = String(data[0].hotel_name);
-      }
-      hotelRooms = data.map(d => ({
-        room_type: String(d.room_type || ''),
-        room_name: String(d.room_name || d.room_type || ''),
-        min_rate: Number(d.min_rate) || 0,
-        max_rate: Number(d.max_rate) || 0
-      }));
-    }
-
-    // Parse competitor_hotel
-    if (wb.SheetNames.includes('competitor_hotel')) {
-      const data = XLSX.utils.sheet_to_json<any>(wb.Sheets['competitor_hotel']);
-      competitorHotels = data.map(d => {
-        const searchStr = String(
-          d.competitor_hotel_search ||
-          d.competitor_hotel ||
-          d.competitor_hotel_name ||
-          d.hotel_search ||
-          d.search_query ||
-          d.hotel_name ||
-          d.query ||
-          ''
-        ).trim();
-
-        const hotelId = String(
-          d.competitor_hotel_id ||
-          d.hotel_id ||
-          d.dest_id ||
-          (searchStr && /^\d+$/.test(searchStr) ? searchStr : '') ||
-          ''
-        ).trim();
-
-        const hotelName = String(
-          d.competitor_hotel_name ||
-          d.hotel_name ||
-          (searchStr && !/^\d+$/.test(searchStr) ? searchStr : '') ||
-          (hotelId ? `Hotel ${hotelId}` : '')
-        ).trim();
-
-        return {
-          competitor_hotel_search: searchStr || hotelName,
-          competitor_hotel_id: hotelId,
-          competitor_hotel_name: hotelName || searchStr || (hotelId ? `Hotel ${hotelId}` : 'Unknown Hotel'),
-          address: d.address ? String(d.address) : undefined,
-          city: d.city ? String(d.city) : undefined,
-          review_score: d.review_score ?? undefined,
-          url: d.url ? String(d.url) : undefined
-        };
-      }).filter(h => h.competitor_hotel_search || h.competitor_hotel_id || h.competitor_hotel_name);
-    }
-
-    // Parse competitor_room
-    if (wb.SheetNames.includes('competitor_room')) {
-      const data = XLSX.utils.sheet_to_json<any>(wb.Sheets['competitor_room']);
-      mappedRooms = data.map(d => ({
-        competitor_hotel_id: String(d.competitor_hotel_id || ''),
-        competitor_hotel_name: String(d.competitor_hotel_name || ''),
-        competitor_room_id: String(d.competitor_room_id || ''),
-        competitor_room_name: String(d.competitor_room_name || ''),
-        gross_amount: d.gross_amount !== undefined && d.gross_amount !== '' && d.gross_amount !== 'N/A'
-          ? Number(d.gross_amount)
-          : null,
-        our_room_type: String(d.our_room_type || 'UNMAPPED')
-      }));
-    }
-
-    return {
-      hotelName,
-      hotelRooms,
-      competitorHotels,
-      mappedRooms
-    };
+    return this.parseWorkbookCore(wb, file.name.replace(/\.xlsx$/i, ''));
   }
 
   /**
@@ -242,78 +199,133 @@ export class ExcelService {
     mappedRooms: CompetitorRoomMapping[];
   } {
     const wb = XLSX.read(buffer, { type: 'buffer' });
+    return this.parseWorkbookCore(wb, 'Hotel');
+  }
 
-    let hotelName = 'Hotel';
+  /**
+   * Unified, highly resilient workbook parser that handles all casing variations,
+   * flexible column headers, and auto-detects competitor_hotel_search
+   */
+  private static parseWorkbookCore(wb: XLSX.WorkBook, fallbackHotelName: string): {
+    hotelName: string;
+    hotelRooms: HotelRoomType[];
+    competitorHotels: CompetitorHotel[];
+    mappedRooms: CompetitorRoomMapping[];
+  } {
+    let hotelName = fallbackHotelName;
     let hotelRooms: HotelRoomType[] = [];
     let competitorHotels: CompetitorHotel[] = [];
     let mappedRooms: CompetitorRoomMapping[] = [];
 
-    if (wb.SheetNames.includes('hotel_data')) {
-      const data = XLSX.utils.sheet_to_json<any>(wb.Sheets['hotel_data']);
-      if (data.length > 0 && data[0].hotel_name) {
-        hotelName = String(data[0].hotel_name);
+    // 1. Parse hotel_data
+    const hotelDataSheetInfo = this.findSheet(wb, 'hotel_data', 'hoteldata', 'hotel');
+    if (hotelDataSheetInfo) {
+      const data = XLSX.utils.sheet_to_json<any>(hotelDataSheetInfo.sheet);
+      if (data.length > 0) {
+        const foundName = this.getField(data[0], 'hotel_name', 'hotel', 'name');
+        if (foundName) hotelName = String(foundName).trim();
       }
       hotelRooms = data.map(d => ({
-        room_type: String(d.room_type || ''),
-        room_name: String(d.room_name || d.room_type || ''),
-        min_rate: Number(d.min_rate) || 0,
-        max_rate: Number(d.max_rate) || 0
-      }));
+        room_type: String(this.getField(d, 'room_type', 'roomtype', 'type') || '').trim(),
+        room_name: String(this.getField(d, 'room_name', 'roomname', 'room_type', 'name') || '').trim(),
+        min_rate: Number(this.getField(d, 'min_rate', 'minrate', 'min_price', 'minimum')) || 0,
+        max_rate: Number(this.getField(d, 'max_rate', 'maxrate', 'max_price', 'maximum')) || 0
+      })).filter(r => r.room_type);
     }
 
-    if (wb.SheetNames.includes('competitor_hotel')) {
-      const data = XLSX.utils.sheet_to_json<any>(wb.Sheets['competitor_hotel']);
+    // 2. Parse competitor_hotel
+    let competitorHotelSheetInfo = this.findSheet(
+      wb,
+      'competitor_hotel',
+      'competitorhotel',
+      'competitor_hotels',
+      'competitor',
+      'competitors'
+    );
+
+    // Fallback: If not found by name, scan all sheets for competitor_hotel_search column
+    if (!competitorHotelSheetInfo) {
+      for (const sheetName of wb.SheetNames) {
+        const rows = XLSX.utils.sheet_to_json<any>(wb.Sheets[sheetName]);
+        if (rows.length > 0) {
+          const hasSearchCol = rows.some(r => !!this.getField(r, 'competitor_hotel_search', 'competitor_hotel', 'hotel_search', 'search_query'));
+          if (hasSearchCol) {
+            competitorHotelSheetInfo = { name: sheetName, sheet: wb.Sheets[sheetName] };
+            break;
+          }
+        }
+      }
+    }
+
+    if (competitorHotelSheetInfo) {
+      const data = XLSX.utils.sheet_to_json<any>(competitorHotelSheetInfo.sheet);
       competitorHotels = data.map(d => {
         const searchStr = String(
-          d.competitor_hotel_search ||
-          d.competitor_hotel ||
-          d.competitor_hotel_name ||
-          d.hotel_search ||
-          d.search_query ||
-          d.hotel_name ||
-          d.query ||
-          ''
+          this.getField(
+            d,
+            'competitor_hotel_search',
+            'competitor_hotel',
+            'competitor_hotel_name',
+            'hotel_search',
+            'search_query',
+            'search_hotel',
+            'hotel_name',
+            'hotel',
+            'query'
+          ) || ''
         ).trim();
 
         const hotelId = String(
-          d.competitor_hotel_id ||
-          d.hotel_id ||
-          d.dest_id ||
+          this.getField(d, 'competitor_hotel_id', 'hotel_id', 'dest_id') ||
           (searchStr && /^\d+$/.test(searchStr) ? searchStr : '') ||
           ''
         ).trim();
 
-        const hotelName = String(
-          d.competitor_hotel_name ||
-          d.hotel_name ||
+        const hotelNameParsed = String(
+          this.getField(d, 'competitor_hotel_name', 'hotel_name', 'name') ||
           (searchStr && !/^\d+$/.test(searchStr) ? searchStr : '') ||
           (hotelId ? `Hotel ${hotelId}` : '')
         ).trim();
 
         return {
-          competitor_hotel_search: searchStr || hotelName,
+          competitor_hotel_search: searchStr || hotelNameParsed,
           competitor_hotel_id: hotelId,
-          competitor_hotel_name: hotelName || searchStr || (hotelId ? `Hotel ${hotelId}` : 'Unknown Hotel'),
-          address: d.address ? String(d.address) : undefined,
-          city: d.city ? String(d.city) : undefined,
-          review_score: d.review_score ?? undefined,
-          url: d.url ? String(d.url) : undefined
+          competitor_hotel_name: hotelNameParsed || searchStr || (hotelId ? `Hotel ${hotelId}` : 'Unknown Hotel'),
+          address: this.getField(d, 'address', 'hotel_address') ? String(this.getField(d, 'address', 'hotel_address')) : undefined,
+          city: this.getField(d, 'city', 'location') ? String(this.getField(d, 'city', 'location')) : undefined,
+          review_score: this.getField(d, 'review_score', 'rating', 'score') !== undefined 
+            ? Number(this.getField(d, 'review_score', 'rating', 'score')) 
+            : undefined,
+          url: this.getField(d, 'url', 'link') ? String(this.getField(d, 'url', 'link')) : undefined
         };
       }).filter(h => h.competitor_hotel_search || h.competitor_hotel_id || h.competitor_hotel_name);
     }
 
-    if (wb.SheetNames.includes('competitor_room')) {
-      const data = XLSX.utils.sheet_to_json<any>(wb.Sheets['competitor_room']);
-      mappedRooms = data.map(d => ({
-        competitor_hotel_id: String(d.competitor_hotel_id || ''),
-        competitor_hotel_name: String(d.competitor_hotel_name || ''),
-        competitor_room_id: String(d.competitor_room_id || ''),
-        competitor_room_name: String(d.competitor_room_name || ''),
-        gross_amount: d.gross_amount !== undefined && d.gross_amount !== '' && d.gross_amount !== 'N/A'
-          ? Number(d.gross_amount)
-          : null,
-        our_room_type: String(d.our_room_type || 'UNMAPPED')
-      }));
+    // 3. Parse competitor_room
+    const competitorRoomSheetInfo = this.findSheet(
+      wb,
+      'competitor_room',
+      'competitorroom',
+      'competitor_rooms',
+      'room_mapping',
+      'rooms'
+    );
+
+    if (competitorRoomSheetInfo) {
+      const data = XLSX.utils.sheet_to_json<any>(competitorRoomSheetInfo.sheet);
+      mappedRooms = data.map(d => {
+        const rawGross = this.getField(d, 'gross_amount', 'grossamount', 'price', 'rate');
+        return {
+          competitor_hotel_id: String(this.getField(d, 'competitor_hotel_id', 'hotel_id') || '').trim(),
+          competitor_hotel_name: String(this.getField(d, 'competitor_hotel_name', 'hotel_name') || '').trim(),
+          competitor_room_id: String(this.getField(d, 'competitor_room_id', 'room_id') || '').trim(),
+          competitor_room_name: String(this.getField(d, 'competitor_room_name', 'room_name', 'room') || '').trim(),
+          gross_amount: rawGross !== undefined && rawGross !== '' && rawGross !== 'N/A'
+            ? Number(rawGross)
+            : null,
+          our_room_type: String(this.getField(d, 'our_room_type', 'ourroomtype', 'room_type') || 'UNMAPPED').trim()
+        };
+      }).filter(r => r.competitor_room_name || r.competitor_room_id);
     }
 
     return {

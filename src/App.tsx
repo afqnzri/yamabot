@@ -87,7 +87,12 @@ export default function App() {
       let finalHotels = data.competitorHotels;
       let finalRooms = data.mappedRooms;
 
-      if (finalHotels.length > 0 && finalRooms.length === 0) {
+      const hasSearchQueries = finalHotels.some(h => !!h.competitor_hotel_search);
+      const hasMissingRooms = finalRooms.length === 0 || finalHotels.some(
+        h => !h.competitor_hotel_id || !finalRooms.some(r => r.competitor_hotel_id === h.competitor_hotel_id)
+      );
+
+      if (finalHotels.length > 0 && (hasSearchQueries || hasMissingRooms)) {
         const { RapidApiService } = await import('./services/rapidApiService');
         const defaultArr = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
         const defaultDep = new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10);
@@ -100,7 +105,21 @@ export default function App() {
           rapidApiHost
         );
         finalHotels = resolved.updatedHotels;
-        finalRooms = resolved.generatedRooms;
+
+        let genRooms = resolved.generatedRooms;
+        if (finalRooms.length > 0) {
+          genRooms = genRooms.map(gen => {
+            const existing = finalRooms.find(
+              ex => (ex.competitor_room_id && ex.competitor_room_id === gen.competitor_room_id) ||
+                    (ex.competitor_hotel_id === gen.competitor_hotel_id && ex.competitor_room_name.toLowerCase() === gen.competitor_room_name.toLowerCase())
+            );
+            if (existing && existing.our_room_type && existing.our_room_type !== 'UNMAPPED') {
+              return { ...gen, our_room_type: existing.our_room_type };
+            }
+            return gen;
+          });
+        }
+        finalRooms = genRooms;
       }
 
       setCompetitorHotels(finalHotels);
