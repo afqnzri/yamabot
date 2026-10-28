@@ -217,13 +217,28 @@ export class RapidApiService {
         if (rawList.length > 0) {
           return rawList.map((room: any) => {
             let gross: number | null = null;
-            const price = room.product_price_breakdown?.all_inclusive_amount?.value 
-                       ?? room.product_price_breakdown?.gross_amount?.value
-                       ?? room.gross_amount 
-                       ?? room.price 
-                       ?? room.composite_price_breakdown?.gross_amount?.value;
-            if (typeof price === 'number') gross = Math.round(price * 100) / 100;
-            else if (typeof price === 'string') gross = Math.round(parseFloat(price) * 100) / 100 || null;
+            const pb = room.product_price_breakdown;
+            // Prioritize MYR (hotel currency) from Booking.com breakdown
+            let priceVal: number | null = null;
+            if (pb?.all_inclusive_amount_hotel_currency?.value !== undefined) {
+              priceVal = pb.all_inclusive_amount_hotel_currency.value;
+            } else if (pb?.gross_amount_hotel_currency?.value !== undefined) {
+              priceVal = pb.gross_amount_hotel_currency.value;
+            } else if (pb?.all_inclusive_amount?.value !== undefined) {
+              const val = pb.all_inclusive_amount.value;
+              priceVal = pb.all_inclusive_amount.currency === 'USD' ? val * 4.45 : val;
+            } else if (pb?.gross_amount?.value !== undefined) {
+              const val = pb.gross_amount.value;
+              priceVal = pb.gross_amount.currency === 'USD' ? val * 4.45 : val;
+            } else if (room.gross_amount !== undefined) {
+              priceVal = Number(room.gross_amount);
+            } else if (room.price !== undefined) {
+              priceVal = Number(room.price);
+            }
+
+            if (typeof priceVal === 'number' && !isNaN(priceVal)) {
+              gross = Math.round(priceVal * 100) / 100;
+            }
 
             return {
               competitor_room_id: String(room.room_id || room.block_id || room.id),
