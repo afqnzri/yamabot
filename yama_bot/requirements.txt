@@ -1,5 +1,0 @@
-# YAMA Bot - Hotel Competitor Room Mapping & Price Monitoring
-# Python Requirements
-requests>=2.28.0
-openpyxl>=3.1.2
-python-dotenv>=1.0.0
